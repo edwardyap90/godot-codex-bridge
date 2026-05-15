@@ -2,7 +2,7 @@
 
 Experimental local bridge for letting coding agents inspect and operate the Godot editor through explicit, reviewable commands.
 
-![Godot Codex Bridge overview](docs/overview.svg)
+![Godot Codex Bridge feature map](docs/feature-map.svg)
 
 Godot Codex Bridge does not call any AI model API. It does not store model keys. The agent runs outside Godot and sends local commands to this plugin.
 
@@ -15,6 +15,8 @@ Godot Codex Bridge is a small Godot editor plugin that exposes a controlled comm
 The goal is not to replace the Godot editor. The goal is to let an agent work with the editor in a way that is visible, project-scoped, and reversible.
 
 ## How It Works
+
+![Godot Codex Bridge architecture overview](docs/overview.svg)
 
 The default transport is a project-local file queue:
 
