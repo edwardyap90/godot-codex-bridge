@@ -1,0 +1,17 @@
+.godot/
+.import/
+*.tmp
+*.log
+.DS_Store
+
+# Bridge runtime state
+**/.godot/godot_codex_bridge/
+
+# Local editor state
+*.translation
+export_presets.cfg
+
+# OS/editor noise
+Thumbs.db
+.vscode/
+.idea/

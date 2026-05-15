@@ -1,0 +1,64 @@
+# Godot Codex Bridge
+
+一个实验性的 Godot 4 编辑器本地桥接插件，让 Codex 这类编程 agent 可以通过明确、可审查的命令读取和操作 Godot 编辑器。
+
+插件本身不调用 AI 模型 API，不保存模型密钥。推理和代码决策在 Godot 外部完成，Godot 插件只负责执行本地命令。
+
+> 状态：Alpha。已在 Godot 4.6 测试，建议使用前保留备份。
+
+## 能力
+
+- 默认使用项目内文件队列，不占端口。
+- 可选开启 `127.0.0.1` TCP 桥。
+- 通过 `project_root` 做项目隔离，避免多项目串用。
+- 右侧 Dock 显示项目、队列路径、最近命令、快照和运行报告。
+- 命令历史写入 `.godot/godot_codex_bridge/history.jsonl`。
+- 支持先预览、再加入待确认队列、最后应用。
+- 修改文件或当前场景前自动创建快照。
+- 支持恢复快照。
+- 支持触发 Godot headless 检查并记录错误/警告。
+- 可操作场景树、选中节点、Inspector、Project Settings、Input Map、资源和 `AnimationPlayer`。
+
+## 安装
+
+1. 把 `addons/godot_codex_bridge/` 复制到你的 Godot 项目。
+2. 如果需要命令行 helper，把 `tools/godot_bridge_send.sh` 也复制过去。
+3. 在 `Project > Project Settings > Plugins` 启用 **Godot Codex Bridge**。
+4. 右侧会出现 **Codex Bridge** Dock。
+
+默认文件队列在：
+
+```text
+res://.godot/godot_codex_bridge/inbox
+res://.godot/godot_codex_bridge/outbox
+```
+
+## 安全模型
+
+- 请求会校验目标 `project_root`。
+- 拒绝写入 `res://addons/godot_codex_bridge`。
+- 支持 dry-run 预览。
+- 支持待确认队列。
+- 改动前创建快照。
+- 运行状态只放在项目本地 `.godot/godot_codex_bridge/`，不要提交到 Git。
+
+这仍然是编辑器自动化插件。不要执行来自不可信 agent 的命令。
+
+## 常用命令
+
+```bash
+tools/godot_bridge_send.sh ping
+tools/godot_bridge_send.sh get_project_identity
+tools/godot_bridge_send.sh get_editor_context
+tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
+```
+
+## 开发验证
+
+```bash
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . --check-only --quit
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/action_executor_smoke.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/scene_action_executor_smoke.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/control_bridge_smoke.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/file_bridge_smoke.gd
+```
