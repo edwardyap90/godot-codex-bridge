@@ -4,6 +4,8 @@
 
 Experimental local bridge for letting coding agents inspect and operate the Godot editor through explicit, reviewable commands.
 
+![Bridge Dungeon demo](docs/media/bridge-dungeon-demo.gif)
+
 ![Godot Codex Bridge feature map](docs/feature-map.svg)
 
 Godot Codex Bridge does not call any AI model API. It does not store model keys. The agent runs outside Godot and sends local commands to this plugin.
