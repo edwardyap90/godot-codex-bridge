@@ -11,11 +11,12 @@
 - 默认使用项目内文件队列，不占端口。
 - 可选开启 `127.0.0.1` TCP 桥。
 - 通过 `project_root` 做项目隔离，避免多项目串用。
-- 右侧 Dock 显示项目、队列路径、最近命令、快照和运行报告。
+- 右侧 Dock 显示项目、队列路径、最近命令、可视反馈、快照和运行报告。
 - 命令历史写入 `.godot/godot_codex_bridge/history.jsonl`。
 - 支持先预览、再加入待确认队列、最后应用。
 - 修改文件或当前场景前自动创建快照。
 - 支持恢复快照。
+- 应用场景动作后会尽量自动选中最后一个成功修改的节点。
 - 支持触发 Godot headless 检查并记录错误/警告。
 - 可操作场景树、选中节点、Inspector、Project Settings、Input Map、资源和 `AnimationPlayer`。
 
@@ -67,4 +68,5 @@ GitHub Actions 会在推送到 `main`、Pull Request 和手动触发时自动运
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/scene_action_executor_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/control_bridge_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/file_bridge_smoke.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/status_dock_smoke.gd
 ```

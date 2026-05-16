@@ -41,3 +41,4 @@ jobs:
           "$GODOT_BIN" --headless --path . -s tests/scene_action_executor_smoke.gd
           "$GODOT_BIN" --headless --path . -s tests/control_bridge_smoke.gd
           "$GODOT_BIN" --headless --path . -s tests/file_bridge_smoke.gd
+          "$GODOT_BIN" --headless --path . -s tests/status_dock_smoke.gd

@@ -35,11 +35,12 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 - File-queue transport by default, so no port is required.
 - Optional TCP transport on `127.0.0.1`.
 - Project isolation through `project_root` validation.
-- Godot dock showing the active project, queue paths, recent command, snapshots, and run reports.
+- Godot dock showing the active project, queue paths, recent commands, visual feedback, snapshots, and run reports.
 - Command history in `.godot/godot_codex_bridge/history.jsonl`.
 - Pending action queue: preview first, apply later.
 - Automatic snapshots before scene/file-changing operations.
 - Snapshot restore for changed files and saved scenes.
+- Scene-changing action batches focus the last successfully changed node in the editor when possible.
 - Headless Godot checks with captured errors and warnings.
 - Editor commands for scene tree, selection, Inspector properties, Project Settings, Input Map, resources, and `AnimationPlayer` editing.
 
@@ -88,6 +89,8 @@ Then inspect and apply:
 tools/godot_bridge_send.sh get_pending_actions
 tools/godot_bridge_send.sh --json '{"command":"apply_queued_actions","queue_id":"queue_..."}'
 ```
+
+When scene actions are applied, the bridge response includes `visual_feedback`. If a focusable scene node was changed, the editor selection and Inspector focus move to that node.
 
 ## CLI Helper
 
@@ -156,6 +159,7 @@ Run checks:
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/scene_action_executor_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/control_bridge_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/file_bridge_smoke.gd
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/status_dock_smoke.gd
 ```
 
 Use your local Godot executable path if it differs from the macOS path above.

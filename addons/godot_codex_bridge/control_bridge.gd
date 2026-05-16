@@ -14,6 +14,7 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 
 signal request_handled(command: String, ok: bool, message: String, request_id: String)
+signal request_observed(entry: Dictionary)
 
 var editor_interface = null
 var executor: RefCounted
@@ -469,8 +470,32 @@ func _response(ok: bool, message: String, data: Dictionary = {}) -> Dictionary:
 	}
 
 
+func _request_summary(command: String, data: Dictionary) -> String:
+	match command:
+		"queue_actions":
+			var queued := data.get("queued", {}) as Dictionary
+			var queue_id := str(queued.get("queue_id", ""))
+			var action_count := int(queued.get("action_count", 0))
+			return "Queued " + str(action_count) + " actions" + (" as " + queue_id if not queue_id.is_empty() else "")
+		"apply_queued_actions", "apply_actions":
+			var action_result := data.get("action_result", {}) as Dictionary
+			return "Applied " + str(action_result.get("applied", 0)) + " / " + str(action_result.get("total", 0)) + " actions"
+		"preview_actions":
+			var preview := data.get("preview", {}) as Dictionary
+			return "Previewed " + str(preview.get("total", 0)) + " actions, invalid " + str(preview.get("invalid", 0))
+		"restore_snapshot":
+			var snapshot := data.get("snapshot", {}) as Dictionary
+			return "Restored snapshot " + str(snapshot.get("snapshot_id", ""))
+		"select_node":
+			var selection := data.get("selection", []) as Array
+			return "Selected " + str(selection.size()) + " node(s)"
+		_:
+			return ""
+
+
 func _finish_request(command: String, request: Dictionary, response: Dictionary) -> Dictionary:
 	var request_id := str(request.get("request_id", ""))
+	var data := response.get("data", {}) as Dictionary
 	var entry := {
 		"command": command,
 		"ok": bool(response.get("ok", false)),
@@ -478,11 +503,14 @@ func _finish_request(command: String, request: Dictionary, response: Dictionary)
 		"request_id": request_id,
 		"updated_at": Time.get_datetime_string_from_system(),
 		"dry_run": bool(request.get("dry_run", false)),
-		"client_cwd": str(request.get("client_cwd", ""))
+		"client_cwd": str(request.get("client_cwd", "")),
+		"summary": _request_summary(command, data),
+		"visual_feedback": data.get("visual_feedback", {})
 	}
 	last_request = entry
 	_record_history(entry)
 	request_handled.emit(command, bool(response.get("ok", false)), str(response.get("message", "")), request_id)
+	request_observed.emit(entry)
 	return response
 
 
@@ -1662,10 +1690,71 @@ func _apply_actions_with_snapshot(actions: Array, reason: String) -> Dictionary:
 		})
 
 	var action_result: Dictionary = executor.apply_actions(actions)
+	var visual_feedback := _focus_after_actions(actions, action_result)
 	return _response(true, "ok", {
 		"snapshot": _snapshot_summary(snapshot),
-		"action_result": action_result
+		"action_result": action_result,
+		"visual_feedback": visual_feedback
 	})
+
+
+func _focus_after_actions(actions: Array, action_result: Dictionary) -> Dictionary:
+	var results = action_result.get("results", [])
+	if typeof(results) != TYPE_ARRAY:
+		return {
+			"focused": false,
+			"reason": "action result did not include result items"
+		}
+
+	var result_items := results as Array
+	for index in range(result_items.size() - 1, -1, -1):
+		var result_item = result_items[index]
+		if typeof(result_item) != TYPE_DICTIONARY:
+			continue
+		var result := result_item as Dictionary
+		if not bool(result.get("ok", false)):
+			continue
+
+		var action := {}
+		if index < actions.size() and typeof(actions[index]) == TYPE_DICTIONARY:
+			action = actions[index] as Dictionary
+
+		var node_path := _focus_path_for_action(action, result)
+		if node_path.is_empty():
+			continue
+
+		var node := _find_scene_node(node_path)
+		if node == null:
+			continue
+
+		_focus_editor_node(node)
+		return {
+			"focused": true,
+			"reason": "last successful scene action",
+			"action_type": str(result.get("type", "")),
+			"node": _node_summary(node, _edited_scene_root())
+		}
+
+	return {
+		"focused": false,
+		"reason": "no focusable scene node"
+	}
+
+
+func _focus_path_for_action(action: Dictionary, result: Dictionary) -> String:
+	var action_type := str(result.get("type", action.get("type", ""))).strip_edges()
+	match action_type:
+		"add_node":
+			return str(result.get("path", "")).strip_edges()
+		"set_property", "attach_script":
+			return str(action.get("node_path", action.get("path", ""))).strip_edges()
+		"connect_signal":
+			var target_path := str(action.get("target_path", "")).strip_edges()
+			if not target_path.is_empty():
+				return target_path
+			return str(action.get("source_path", "")).strip_edges()
+		_:
+			return ""
 
 
 func _pending_action_index(queue_id: String) -> int:

@@ -49,6 +49,8 @@ class FakeEditorInterface:
 	var selection := FakeSelection.new()
 	var filesystem := FakeResourceFilesystem.new()
 	var dirty_count := 0
+	var edit_count := 0
+	var last_edited_node_name := ""
 	var playing := false
 	var last_played_scene := ""
 
@@ -64,8 +66,9 @@ class FakeEditorInterface:
 	func get_resource_filesystem() -> FakeResourceFilesystem:
 		return filesystem
 
-	func edit_node(_node: Node) -> void:
-		pass
+	func edit_node(node: Node) -> void:
+		edit_count += 1
+		last_edited_node_name = node.name
 
 	func mark_scene_as_unsaved() -> void:
 		dirty_count += 1
@@ -367,6 +370,8 @@ func _init() -> void:
 	var discarded_child := scene_root.get_node_or_null("DiscardedChild")
 	var action_data := action_result.get("data", {}) as Dictionary
 	var executor_result := action_data.get("action_result", {}) as Dictionary
+	var visual_feedback := action_data.get("visual_feedback", {}) as Dictionary
+	var visual_node := visual_feedback.get("node", {}) as Dictionary
 	var dry_run_data := dry_run_result.get("data", {}) as Dictionary
 	var dry_run_preview := dry_run_data.get("preview", {}) as Dictionary
 	var capabilities_data := capabilities_result.get("data", {}) as Dictionary
@@ -467,6 +472,8 @@ func _init() -> void:
 	passed = passed and bool(restore_result.get("ok", false))
 	passed = passed and not FileAccess.file_exists(file_path)
 	passed = passed and bool(action_result.get("ok", false))
+	passed = passed and bool(visual_feedback.get("focused", false))
+	passed = passed and str(visual_node.get("path", "")) == "BridgeChild"
 	passed = passed and bool(select_result.get("ok", false))
 	passed = passed and bool(selection_result.get("ok", false))
 	passed = passed and bool(details_result.get("ok", false))
@@ -484,6 +491,7 @@ func _init() -> void:
 	passed = passed and selection_nodes.size() == 1
 	passed = passed and str((selection_nodes[0] as Dictionary).get("path", "")) == "BridgeChild"
 	passed = passed and str(node_details.get("class", "")) == "Node2D"
+	passed = passed and fake_editor.last_edited_node_name == "BridgeChild"
 	passed = passed and fake_editor.last_played_scene == ProjectSettings.get_setting("application/run/main_scene", "")
 	passed = passed and not fake_editor.playing
 	passed = passed and history_entries.size() > 0

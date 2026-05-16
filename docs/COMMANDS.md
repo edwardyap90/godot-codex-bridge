@@ -31,6 +31,8 @@ Requests are JSON objects with a `command` field. The shell helper adds `request
 {"command":"restore_snapshot","snapshot_id":"snapshot_..."}
 ```
 
+`apply_actions` and `apply_queued_actions` responses include `visual_feedback` when the bridge can focus a changed scene node in the editor. The dock also keeps the latest visual feedback and recent command list visible.
+
 ## Supported Actions
 
 - `write_file`
