@@ -7,6 +7,8 @@
 
 # Bridge runtime state
 **/.godot/godot_codex_bridge/
+examples/*/addons/godot_codex_bridge/
+examples/*/tools/godot_bridge_*.sh
 
 # Local editor state
 *.translation

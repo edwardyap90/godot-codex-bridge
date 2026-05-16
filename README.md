@@ -58,6 +58,23 @@ res://.godot/godot_codex_bridge/inbox
 res://.godot/godot_codex_bridge/outbox
 ```
 
+## New Game Workflow
+
+For a new Codex-built Godot game, bootstrap the project first:
+
+```bash
+tools/godot_bridge_bootstrap_project.sh ~/GodotGames/my-game "My Game"
+cd ~/GodotGames/my-game
+tools/godot_bridge_guard.sh
+```
+
+After the guard passes, Codex should send gameplay files, scenes, resources,
+project settings, and editor actions through `tools/godot_bridge_send.sh`.
+Direct file writes are only for the initial bootstrap step before the bridge
+exists.
+
+See [docs/CODEX_WORKFLOW.md](docs/CODEX_WORKFLOW.md) for the full workflow.
+
 ## Quick Start
 
 From your Godot project root:
@@ -102,6 +119,26 @@ When scene actions are applied, the bridge response includes `visual_feedback`. 
 - `--json`: sends a raw command object for advanced workflows.
 
 The CLI auto-detects the nearest `project.godot` from the current directory. Set `CODEX_GODOT_BIN` if `doctor` should use a specific Godot executable.
+
+`tools/godot_bridge_bootstrap_project.sh` installs the addon and helper scripts
+into a target project, updates `project.godot`, opens Godot, and waits for
+bridge `ping`.
+
+`tools/godot_bridge_guard.sh` is the required preflight for Codex-driven Godot
+game work. It fails if the bridge is missing, not enabled, or not responding.
+
+## Demo Project
+
+`examples/flappy-sky-runner` is a complete small Flappy-style Godot game demo
+built through the bridge workflow. To install the bridge into the demo and run
+it:
+
+```bash
+tools/godot_bridge_bootstrap_project.sh examples/flappy-sky-runner "Flappy Sky Runner"
+cd examples/flappy-sky-runner
+tools/godot_bridge_guard.sh
+tools/godot_bridge_send.sh play_main_scene
+```
 
 ## Command Families
 

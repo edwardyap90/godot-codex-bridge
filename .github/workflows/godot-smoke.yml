@@ -34,6 +34,13 @@ jobs:
       - name: Check project
         run: "$GODOT_BIN --headless --path . --check-only --quit"
 
+      - name: Check shell helpers
+        run: |
+          set -euo pipefail
+          bash -n tools/godot_bridge_send.sh
+          bash -n tools/godot_bridge_bootstrap_project.sh
+          bash -n tools/godot_bridge_guard.sh
+
       - name: Run smoke tests
         run: |
           set -euo pipefail
@@ -42,3 +49,20 @@ jobs:
           "$GODOT_BIN" --headless --path . -s tests/control_bridge_smoke.gd
           "$GODOT_BIN" --headless --path . -s tests/file_bridge_smoke.gd
           "$GODOT_BIN" --headless --path . -s tests/status_dock_smoke.gd
+
+      - name: Check bootstrap workflow
+        run: |
+          set -euo pipefail
+          tmp_project="$(mktemp -d)"
+          CODEX_GODOT_BIN="$GODOT_BIN" tools/godot_bridge_bootstrap_project.sh --no-open --no-wait "$tmp_project" "Bootstrap Smoke"
+          test -f "$tmp_project/addons/godot_codex_bridge/plugin.cfg"
+          test -x "$tmp_project/tools/godot_bridge_send.sh"
+          test -x "$tmp_project/tools/godot_bridge_guard.sh"
+          grep -q 'res://addons/godot_codex_bridge/plugin.cfg' "$tmp_project/project.godot"
+
+      - name: Check demo project
+        run: |
+          set -euo pipefail
+          CODEX_GODOT_BIN="$GODOT_BIN" tools/godot_bridge_bootstrap_project.sh --no-open --no-wait examples/flappy-sky-runner "Flappy Sky Runner"
+          "$GODOT_BIN" --headless --path examples/flappy-sky-runner --check-only --quit
+          "$GODOT_BIN" --headless --path examples/flappy-sky-runner -s tests/flappy_smoke.gd

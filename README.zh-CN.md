@@ -34,6 +34,31 @@ res://.godot/godot_codex_bridge/inbox
 res://.godot/godot_codex_bridge/outbox
 ```
 
+## 新游戏工作流
+
+如果要让 Codex 从零创建 Godot 游戏，先 bootstrap 项目：
+
+```bash
+tools/godot_bridge_bootstrap_project.sh ~/GodotGames/my-game "My Game"
+cd ~/GodotGames/my-game
+tools/godot_bridge_guard.sh
+```
+
+`guard` 通过后，Codex 应该通过 `tools/godot_bridge_send.sh` 写入游戏脚本、场景、资源、项目设置和编辑器动作。直接写文件只适用于 bridge 尚不存在之前的最小 bootstrap。
+
+完整流程见 [docs/CODEX_WORKFLOW.md](docs/CODEX_WORKFLOW.md)。
+
+## Demo 项目
+
+`examples/flappy-sky-runner` 是一个完整的小型 Flappy 风格 Godot 游戏示例。运行方式：
+
+```bash
+tools/godot_bridge_bootstrap_project.sh examples/flappy-sky-runner "Flappy Sky Runner"
+cd examples/flappy-sky-runner
+tools/godot_bridge_guard.sh
+tools/godot_bridge_send.sh play_main_scene
+```
+
 ## 安全模型
 
 - 请求会校验目标 `project_root`。
