@@ -1,22 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
   <title id="title">Godot Codex Bridge feature map</title>
-  <desc id="desc">A feature overview for Godot Codex Bridge showing local commands, visible editor actions, supported Godot surfaces, and project safety.</desc>
+  <desc id="desc">A feature map for Godot Codex Bridge showing project bootstrap, visible review, Godot editor surfaces, snapshots, and demos.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#08111f"/>
-      <stop offset="55%" stop-color="#0d1626"/>
+      <stop offset="58%" stop-color="#0d1626"/>
       <stop offset="100%" stop-color="#10151e"/>
     </linearGradient>
-    <linearGradient id="godot" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0%" stop-color="#4aa3ff"/>
-      <stop offset="100%" stop-color="#2568c9"/>
-    </linearGradient>
-    <linearGradient id="codex" x1="0" x2="1" y1="0" y2="1">
+    <linearGradient id="green" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0%" stop-color="#5ee295"/>
       <stop offset="100%" stop-color="#25a86a"/>
     </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#55a7ff"/>
+      <stop offset="100%" stop-color="#2669cc"/>
+    </linearGradient>
     <filter id="shadow" x="-12%" y="-12%" width="124%" height="124%">
-      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000000" flood-opacity="0.34"/>
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#000000" flood-opacity="0.32"/>
     </filter>
     <style>
       .title { font: 750 52px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #f7fbff; }
@@ -25,87 +25,94 @@
       .body { font: 500 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #b8c7dc; }
       .small { font: 560 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #91a4be; }
       .chip { font: 650 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #dff7ff; }
-      .mono { font: 600 15px "SFMono-Regular", Consolas, monospace; fill: #c8d7ec; }
+      .mono { font: 650 15px "SFMono-Regular", Consolas, monospace; fill: #c8d7ec; }
       .panel { fill: #111d2e; stroke: #2d4264; stroke-width: 2; }
-      .panel2 { fill: #0c1624; stroke: #263b5b; stroke-width: 2; }
+      .chipBox { fill: #13233a; stroke: #314969; stroke-width: 2; }
       .line { stroke: #55a7ff; stroke-width: 5; stroke-linecap: round; fill: none; }
       .mutedLine { stroke: #2d4264; stroke-width: 2; stroke-linecap: round; fill: none; }
     </style>
   </defs>
 
   <rect width="1280" height="720" fill="url(#bg)"/>
-  <path d="M0 620 C210 560 330 650 520 585 C720 516 795 438 990 496 C1130 538 1190 515 1280 462 L1280 720 L0 720 Z" fill="#0f2a3f" opacity="0.35"/>
-  <path d="M0 666 C200 612 350 690 540 630 C755 562 827 527 1025 575 C1145 604 1215 580 1280 540 L1280 720 L0 720 Z" fill="#0f3a2a" opacity="0.24"/>
+  <path d="M0 612 C212 558 332 650 525 586 C720 520 798 440 994 494 C1130 532 1190 514 1280 462 L1280 720 L0 720 Z" fill="#0f2a3f" opacity="0.34"/>
+  <path d="M0 666 C204 614 350 690 540 630 C756 562 826 528 1024 575 C1146 604 1216 580 1280 540 L1280 720 L0 720 Z" fill="#0f3a2a" opacity="0.24"/>
 
   <text x="64" y="76" class="title">Godot Codex Bridge</text>
-  <text x="66" y="116" class="subtitle">Local, reviewable editor automation for Godot 4</text>
+  <text x="66" y="116" class="subtitle">Project-safe editor automation for Codex and Godot 4</text>
 
   <g transform="translate(64 154)" filter="url(#shadow)">
-    <rect width="552" height="220" rx="18" class="panel"/>
-    <text x="30" y="46" class="section">Local command bridge</text>
-    <text x="30" y="78" class="body">Codex sends explicit commands through a project queue.</text>
-    <rect x="32" y="112" width="138" height="50" rx="12" fill="url(#codex)"/>
-    <text x="72" y="143" class="chip">Codex</text>
-    <path d="M190 137 L296 137" class="line"/>
-    <path d="M296 137 L278 126 L278 148 Z" fill="#55a7ff"/>
-    <rect x="322" y="112" width="138" height="50" rx="12" fill="url(#godot)"/>
-    <text x="364" y="143" class="chip">Godot</text>
-    <text x="32" y="194" class="mono">res://.godot/godot_codex_bridge</text>
+    <rect width="552" height="208" rx="18" class="panel"/>
+    <text x="30" y="46" class="section">Start from any project</text>
+    <text x="30" y="78" class="body">Bootstrap installs the bridge. Guard checks it.</text>
+    <rect x="32" y="112" width="142" height="50" rx="12" fill="url(#green)"/>
+    <text x="63" y="143" class="chip">bootstrap</text>
+    <path d="M194 137 L272 137" class="line"/>
+    <path d="M272 137 L254 126 L254 148 Z" fill="#55a7ff"/>
+    <rect x="298" y="112" width="98" height="50" rx="12" fill="#13233a" stroke="#314969" stroke-width="2"/>
+    <text x="322" y="143" class="chip">guard</text>
+    <rect x="416" y="112" width="98" height="50" rx="12" fill="#13233a" stroke="#314969" stroke-width="2"/>
+    <text x="446" y="143" class="chip">ping</text>
+    <text x="32" y="190" class="mono">tools/godot_bridge_*.sh</text>
   </g>
 
   <g transform="translate(664 154)" filter="url(#shadow)">
-    <rect width="552" height="220" rx="18" class="panel"/>
-    <text x="30" y="46" class="section">Visible review loop</text>
-    <text x="30" y="78" class="body">Open scenes, select nodes, preview work, then apply.</text>
-    <rect x="32" y="112" width="112" height="42" rx="10" fill="#172740" stroke="#3b5578" stroke-width="2"/>
-    <text x="61" y="139" class="chip">Preview</text>
-    <rect x="166" y="112" width="112" height="42" rx="10" fill="#172740" stroke="#3b5578" stroke-width="2"/>
-    <text x="203" y="139" class="chip">Queue</text>
-    <rect x="300" y="112" width="112" height="42" rx="10" fill="#173323" stroke="#3a7654" stroke-width="2"/>
-    <text x="336" y="139" class="chip">Apply</text>
-    <path d="M148 133 L162 133" class="mutedLine"/>
-    <path d="M282 133 L296 133" class="mutedLine"/>
-    <text x="32" y="194" class="small">The editor dock shows the latest command and result.</text>
+    <rect width="552" height="208" rx="18" class="panel"/>
+    <text x="30" y="46" class="section">Visible editor control</text>
+    <text x="30" y="78" class="body">Inspect, queue, apply, then focus changed nodes.</text>
+    <rect x="32" y="112" width="102" height="42" rx="10" class="chipBox"/>
+    <text x="57" y="139" class="chip">Inspect</text>
+    <rect x="154" y="112" width="102" height="42" rx="10" class="chipBox"/>
+    <text x="186" y="139" class="chip">Queue</text>
+    <rect x="276" y="112" width="102" height="42" rx="10" fill="#173323" stroke="#3a7654" stroke-width="2"/>
+    <text x="307" y="139" class="chip">Apply</text>
+    <rect x="398" y="112" width="102" height="42" rx="10" class="chipBox"/>
+    <text x="429" y="139" class="chip">Focus</text>
+    <path d="M138 133 L150 133 M260 133 L272 133 M382 133 L394 133" class="mutedLine"/>
+    <text x="32" y="190" class="small">Dock output shows command status and results.</text>
   </g>
 
-  <g transform="translate(64 426)" filter="url(#shadow)">
+  <g transform="translate(64 414)" filter="url(#shadow)">
     <rect width="552" height="190" rx="18" class="panel"/>
-    <text x="30" y="46" class="section">Godot surfaces</text>
-    <text x="30" y="78" class="body">Commands cover common editor areas.</text>
+    <text x="30" y="46" class="section">Godot editor surfaces</text>
+    <text x="30" y="78" class="body">Commands cover the common places Codex needs.</text>
     <g transform="translate(30 104)">
-      <rect width="148" height="38" rx="10" fill="#13233a" stroke="#314969" stroke-width="2"/>
-      <text x="31" y="25" class="chip">Scene tree</text>
+      <rect width="148" height="36" rx="10" class="chipBox"/>
+      <text x="31" y="24" class="chip">Scene tree</text>
     </g>
     <g transform="translate(202 104)">
-      <rect width="148" height="38" rx="10" fill="#13233a" stroke="#314969" stroke-width="2"/>
-      <text x="38" y="25" class="chip">Inspector</text>
+      <rect width="148" height="36" rx="10" class="chipBox"/>
+      <text x="38" y="24" class="chip">Inspector</text>
     </g>
     <g transform="translate(374 104)">
-      <rect width="148" height="38" rx="10" fill="#13233a" stroke="#314969" stroke-width="2"/>
-      <text x="23" y="25" class="chip">Input Map</text>
+      <rect width="148" height="36" rx="10" class="chipBox"/>
+      <text x="34" y="24" class="chip">Input Map</text>
     </g>
     <g transform="translate(30 148)">
-      <rect width="148" height="32" rx="10" fill="#13233a" stroke="#314969" stroke-width="2"/>
-      <text x="28" y="22" class="chip">Resources</text>
+      <rect width="148" height="32" rx="10" class="chipBox"/>
+      <text x="30" y="22" class="chip">Settings</text>
     </g>
     <g transform="translate(202 148)">
-      <rect width="148" height="32" rx="10" fill="#13233a" stroke="#314969" stroke-width="2"/>
-      <text x="21" y="22" class="chip">Settings</text>
+      <rect width="148" height="32" rx="10" class="chipBox"/>
+      <text x="28" y="22" class="chip">Resources</text>
     </g>
     <g transform="translate(374 148)">
-      <rect width="148" height="32" rx="10" fill="#13233a" stroke="#314969" stroke-width="2"/>
-      <text x="23" y="22" class="chip">Animation</text>
+      <rect width="148" height="32" rx="10" class="chipBox"/>
+      <text x="28" y="22" class="chip">Animation</text>
     </g>
   </g>
 
-  <g transform="translate(664 426)" filter="url(#shadow)">
+  <g transform="translate(664 414)" filter="url(#shadow)">
     <rect width="552" height="190" rx="18" class="panel"/>
-    <text x="30" y="46" class="section">Safe multi-project use</text>
-    <circle cx="50" cy="86" r="7" fill="#55d58a"/>
-    <text x="72" y="92" class="body">Validates project_root</text>
-    <circle cx="50" cy="122" r="7" fill="#55d58a"/>
-    <text x="72" y="128" class="body">No shared ports by default</text>
-    <circle cx="50" cy="158" r="7" fill="#55d58a"/>
-    <text x="72" y="164" class="body">No model API calls or AI keys</text>
+    <text x="30" y="46" class="section">Review, rollback, demos</text>
+    <text x="30" y="78" class="body">Snapshots protect edits. Demos show real use.</text>
+    <circle cx="46" cy="111" r="8" fill="#55d58a"/>
+    <text x="68" y="117" class="body">Snapshot before scene or file changes</text>
+    <circle cx="46" cy="145" r="8" fill="#55a7ff"/>
+    <text x="68" y="151" class="body">Flappy Sky Runner and Bridge Dungeon</text>
+    <circle cx="46" cy="176" r="8" fill="#ff8a65"/>
+    <text x="68" y="182" class="body">Showcase GIF and MP4 assets</text>
   </g>
+
+  <rect x="358" y="642" width="564" height="44" rx="22" fill="#101827" stroke="#2e4263" stroke-width="2"/>
+  <text x="436" y="670" class="small">No model API keys · Project-local queue · Godot 4</text>
 </svg>
