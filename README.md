@@ -1,5 +1,7 @@
 # Godot Codex Bridge
 
+[![Godot smoke tests](https://github.com/edwardyap90/godot-codex-bridge/actions/workflows/godot-smoke.yml/badge.svg)](https://github.com/edwardyap90/godot-codex-bridge/actions/workflows/godot-smoke.yml)
+
 Experimental local bridge for letting coding agents inspect and operate the Godot editor through explicit, reviewable commands.
 
 ![Godot Codex Bridge feature map](docs/feature-map.svg)
