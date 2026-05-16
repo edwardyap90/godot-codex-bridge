@@ -48,12 +48,18 @@ res://.godot/godot_codex_bridge/outbox
 
 ```bash
 tools/godot_bridge_send.sh ping
+tools/godot_bridge_send.sh status
+tools/godot_bridge_send.sh doctor
 tools/godot_bridge_send.sh get_project_identity
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
 ```
 
+`status` 会显示当前项目、队列路径、待处理请求数量和桥接状态响应。`doctor` 会检查插件文件、插件启用状态、Python、Godot 可执行文件、队列目录和 bridge ping。
+
 ## 开发验证
+
+GitHub Actions 会在推送到 `main`、Pull Request 和手动触发时自动运行这些检查。
 
 ```bash
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . --check-only --quit

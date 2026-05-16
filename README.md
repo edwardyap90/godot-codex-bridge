@@ -61,6 +61,8 @@ From your Godot project root:
 
 ```bash
 tools/godot_bridge_send.sh ping
+tools/godot_bridge_send.sh status
+tools/godot_bridge_send.sh doctor
 tools/godot_bridge_send.sh get_project_identity
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
@@ -84,6 +86,17 @@ Then inspect and apply:
 tools/godot_bridge_send.sh get_pending_actions
 tools/godot_bridge_send.sh --json '{"command":"apply_queued_actions","queue_id":"queue_..."}'
 ```
+
+## CLI Helper
+
+`tools/godot_bridge_send.sh` can be copied into any Godot project alongside the addon.
+
+- `ping`: checks whether the open editor bridge can respond.
+- `status`: prints the detected project, queue paths, pending queue counts, and the bridge status response.
+- `doctor`: checks the addon files, plugin setting, Python, Godot executable, queue directories, and bridge ping.
+- `--json`: sends a raw command object for advanced workflows.
+
+The CLI auto-detects the nearest `project.godot` from the current directory. Set `CODEX_GODOT_BIN` if `doctor` should use a specific Godot executable.
 
 ## Command Families
 
@@ -130,6 +143,8 @@ Then include `"token":"your-token"` in each request.
 ## Development
 
 This repository is also a minimal Godot project for testing the plugin.
+
+GitHub Actions runs these checks automatically on pushes to `main`, pull requests, and manual workflow dispatch.
 
 Run checks:
 
