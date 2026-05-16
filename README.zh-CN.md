@@ -50,11 +50,23 @@ tools/godot_bridge_guard.sh
 
 ## Demo 项目
 
-`examples/flappy-sky-runner` 是一个完整的小型 Flappy 风格 Godot 游戏示例。运行方式：
+仓库里现在有两个通过 bridge 工作流做出来的完整 Godot 游戏示例：
+
+- `examples/flappy-sky-runner`：小型 Flappy 风格得分游戏。
+- `examples/bridge-dungeon`：2D 俯视角动作地牢，有移动、射击、敌人、钥匙、出口、HUD、暂停和胜负流程。
+
+运行方式：
 
 ```bash
 tools/godot_bridge_bootstrap_project.sh examples/flappy-sky-runner "Flappy Sky Runner"
 cd examples/flappy-sky-runner
+tools/godot_bridge_guard.sh
+tools/godot_bridge_send.sh play_main_scene
+```
+
+```bash
+tools/godot_bridge_bootstrap_project.sh examples/bridge-dungeon "Bridge Dungeon"
+cd examples/bridge-dungeon
 tools/godot_bridge_guard.sh
 tools/godot_bridge_send.sh play_main_scene
 ```

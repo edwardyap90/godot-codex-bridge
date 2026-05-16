@@ -49,14 +49,25 @@ Use direct filesystem writes only for bootstrap/install work before the bridge
 exists. Once `ping` works, keeping changes inside the bridge path makes them
 project-scoped, visible in the editor, and reversible through snapshots.
 
-## Demo Project
+## Demo Projects
 
-The repository includes `examples/flappy-sky-runner`, a complete small game
-created through this workflow. To try it:
+The repository includes two complete small games created through this workflow:
+
+- `examples/flappy-sky-runner`
+- `examples/bridge-dungeon`
+
+To try them:
 
 ```bash
 tools/godot_bridge_bootstrap_project.sh examples/flappy-sky-runner "Flappy Sky Runner"
 cd examples/flappy-sky-runner
+tools/godot_bridge_guard.sh
+tools/godot_bridge_send.sh play_main_scene
+```
+
+```bash
+tools/godot_bridge_bootstrap_project.sh examples/bridge-dungeon "Bridge Dungeon"
+cd examples/bridge-dungeon
 tools/godot_bridge_guard.sh
 tools/godot_bridge_send.sh play_main_scene
 ```

@@ -127,15 +127,27 @@ bridge `ping`.
 `tools/godot_bridge_guard.sh` is the required preflight for Codex-driven Godot
 game work. It fails if the bridge is missing, not enabled, or not responding.
 
-## Demo Project
+## Demo Projects
 
-`examples/flappy-sky-runner` is a complete small Flappy-style Godot game demo
-built through the bridge workflow. To install the bridge into the demo and run
-it:
+The repository includes two complete Godot game demos built through the bridge
+workflow:
+
+- `examples/flappy-sky-runner`: a compact Flappy-style score-chaser.
+- `examples/bridge-dungeon`: a top-down action dungeon with movement, shooting,
+  enemies, a key pickup, a gate objective, HUD, pause, and win/lose flow.
+
+To install the bridge into a demo and run it:
 
 ```bash
 tools/godot_bridge_bootstrap_project.sh examples/flappy-sky-runner "Flappy Sky Runner"
 cd examples/flappy-sky-runner
+tools/godot_bridge_guard.sh
+tools/godot_bridge_send.sh play_main_scene
+```
+
+```bash
+tools/godot_bridge_bootstrap_project.sh examples/bridge-dungeon "Bridge Dungeon"
+cd examples/bridge-dungeon
 tools/godot_bridge_guard.sh
 tools/godot_bridge_send.sh play_main_scene
 ```

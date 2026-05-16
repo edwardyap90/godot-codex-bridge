@@ -66,3 +66,6 @@ jobs:
           CODEX_GODOT_BIN="$GODOT_BIN" tools/godot_bridge_bootstrap_project.sh --no-open --no-wait examples/flappy-sky-runner "Flappy Sky Runner"
           "$GODOT_BIN" --headless --path examples/flappy-sky-runner --check-only --quit
           "$GODOT_BIN" --headless --path examples/flappy-sky-runner -s tests/flappy_smoke.gd
+          CODEX_GODOT_BIN="$GODOT_BIN" tools/godot_bridge_bootstrap_project.sh --no-open --no-wait examples/bridge-dungeon "Bridge Dungeon"
+          "$GODOT_BIN" --headless --path examples/bridge-dungeon --check-only --quit
+          "$GODOT_BIN" --headless --path examples/bridge-dungeon -s tests/bridge_dungeon_smoke.gd
