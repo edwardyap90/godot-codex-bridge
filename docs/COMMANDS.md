@@ -10,6 +10,7 @@ Requests are JSON objects with a `command` field. The shell helper adds `request
 {"command":"get_bridge_status"}
 {"command":"list_capabilities_v2"}
 {"command":"get_command_schema"}
+{"command":"get_command_history"}
 {"command":"get_command_timeline"}
 {"command":"get_queue_summary"}
 {"command":"get_scene_tree"}
@@ -27,6 +28,7 @@ Requests are JSON objects with a `command` field. The shell helper adds `request
 {"command":"create_animation","node_path":"AnimationPlayer","animation_name":"idle","length":1.0}
 {"command":"add_animation_value_key","node_path":"AnimationPlayer","animation_name":"idle","target_path":"..","property":"position","time":0.5,"value":{"type":"Vector2","x":20,"y":0}}
 {"command":"run_check_only"}
+{"command":"get_play_status"}
 {"command":"get_autoloads"}
 {"command":"add_autoload","name":"GameState","path":"res://scripts/game_state.gd","save":true}
 {"command":"remove_autoload","name":"GameState","save":true}

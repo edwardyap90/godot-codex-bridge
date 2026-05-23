@@ -178,9 +178,9 @@ tools/godot_bridge_send.sh play_main_scene
 
 ## Command Families
 
-- Project and bridge status: `ping`, `get_project_identity`, `get_bridge_status`, `list_editor_capabilities`, `list_capabilities_v2`, `get_command_schema`, `get_command_timeline`
+- Project and bridge status: `ping`, `get_project_identity`, `get_bridge_status`, `list_editor_capabilities`, `list_capabilities_v2`, `get_command_schema`, `get_command_history`, `get_command_timeline`
 - Scene inspection: `get_open_scene`, `get_scene_tree`, `get_editor_context`, `get_selection`, `get_node_details`
-- Scene interaction: `select_node`, `save_scene`, `play_main_scene`, `play_current_scene`, `play_custom_scene`, `stop_playing_scene`
+- Scene interaction: `select_node`, `save_scene`, `get_play_status`, `play_main_scene`, `play_current_scene`, `play_custom_scene`, `stop_playing_scene`, `stop_playing`
 - Safe changes: `preview_actions`, `queue_actions`, `get_queue_summary`, `apply_queued_actions`, `discard_queued_actions`, `get_snapshots`, `restore_snapshot`
 - Inspector: `get_inspector_properties`, `set_inspector_property`, `set_inspector_properties`
 - Project Settings: `get_project_settings`, `get_project_setting`, `set_project_setting`, `get_common_project_settings`, `set_common_project_settings`, `get_autoloads`, `add_autoload`, `remove_autoload`, `get_layer_names`, `set_layer_name`
