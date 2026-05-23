@@ -14,6 +14,7 @@ tcp_bridge_enabled=false
 file_bridge_enabled=true
 file_bridge_root="res://.godot/godot_codex_bridge"
 file_bridge_poll_interval_sec=0.2
+raw_api_enabled=false
 
 [editor_plugins]
 

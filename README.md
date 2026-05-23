@@ -36,15 +36,20 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 
 - File-queue transport by default, so no port is required.
 - Optional TCP transport on `127.0.0.1`.
+- Control Plane v2 responses with `schema_version`, `ui_feedback`, `warnings`, and `changed_paths`.
 - Project isolation through `project_root` validation.
-- Godot dock showing the active project, queue paths, recent commands, visual feedback, snapshots, and run reports.
+- Godot dock console showing the active project, queue paths, recent commands, visual feedback, changed paths, snapshots, run reports, and raw mode status.
 - Command history in `.godot/godot_codex_bridge/history.jsonl`.
+- Command timeline through `get_command_timeline`.
 - Pending action queue: preview first, apply later.
 - Automatic snapshots before scene/file-changing operations.
 - Snapshot restore for changed files and saved scenes.
 - Scene-changing action batches focus the last successfully changed node in the editor when possible.
 - Headless Godot checks with captured errors and warnings.
 - Editor commands for scene tree, selection, Inspector properties, Project Settings, Input Map, resources, and `AnimationPlayer` editing.
+- Extended safe scene actions for node rename, duplicate, remove, reparent, ordering, owner, groups, unique names, and metadata.
+- Resource creation, saving, and property editing for `.tres` and `.res` assets.
+- Controlled Raw API mode for allowlisted Godot editor calls. It is disabled by default and never executes arbitrary scripts.
 
 ## Installation
 
@@ -84,7 +89,10 @@ From your Godot project root:
 ```bash
 tools/godot_bridge_send.sh ping
 tools/godot_bridge_send.sh status
-tools/godot_bridge_send.sh doctor
+tools/godot_bridge_send.sh doctor --deep
+tools/godot_bridge_send.sh capabilities
+tools/godot_bridge_send.sh timeline
+tools/godot_bridge_send.sh raw-status
 tools/godot_bridge_send.sh get_project_identity
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
@@ -118,6 +126,11 @@ When scene actions are applied, the bridge response includes `visual_feedback`. 
 - `ping`: checks whether the open editor bridge can respond.
 - `status`: prints the detected project, queue paths, pending queue counts, and the bridge status response.
 - `doctor`: checks the addon files, plugin setting, Python, Godot executable, queue directories, and bridge ping.
+- `doctor --deep`: also prints Control Plane v2 capabilities and raw mode status.
+- `capabilities`: prints `list_capabilities_v2`.
+- `timeline`: prints the command timeline.
+- `snapshots`: prints known snapshots.
+- `raw-status`: prints whether controlled Raw API mode is enabled and where audit logs are written.
 - `--json`: sends a raw command object for advanced workflows.
 
 The CLI auto-detects the nearest `project.godot` from the current directory. Set `CODEX_GODOT_BIN` if `doctor` should use a specific Godot executable.
@@ -156,16 +169,17 @@ tools/godot_bridge_send.sh play_main_scene
 
 ## Command Families
 
-- Project and bridge status: `ping`, `get_project_identity`, `get_bridge_status`, `list_editor_capabilities`
+- Project and bridge status: `ping`, `get_project_identity`, `get_bridge_status`, `list_editor_capabilities`, `list_capabilities_v2`, `get_command_timeline`
 - Scene inspection: `get_open_scene`, `get_scene_tree`, `get_editor_context`, `get_selection`, `get_node_details`
 - Scene interaction: `select_node`, `save_scene`, `play_main_scene`, `play_current_scene`, `play_custom_scene`, `stop_playing_scene`
 - Safe changes: `preview_actions`, `queue_actions`, `apply_queued_actions`, `discard_queued_actions`, `get_snapshots`, `restore_snapshot`
-- Inspector: `get_inspector_properties`, `set_inspector_property`
+- Inspector: `get_inspector_properties`, `set_inspector_property`, `set_inspector_properties`
 - Project Settings: `get_project_settings`, `get_project_setting`, `set_project_setting`
 - Input Map: `get_input_actions`, `add_input_action`, `remove_input_action`
-- Resources: `get_resource_files`, `get_resource_info`, `get_resource_import_info`, `scan_resource_filesystem`, `reimport_resources`
+- Resources: `get_resource_files`, `get_resource_info`, `get_resource_import_info`, `create_resource`, `set_resource_property`, `save_resource`, `scan_resource_filesystem`, `reimport_resources`
 - Animation: `get_animation_players`, `get_animation_player_info`, `create_animation`, `set_animation_properties`, `add_animation_value_key`
 - Validation: `run_check_only`, `run_project_headless`, `get_last_run_report`
+- Controlled Raw API: `get_raw_mode_status`, `raw_editor_call`, `raw_object_call`, `raw_classdb_query`, `raw_project_call`
 
 ## Safety Model
 
@@ -176,6 +190,8 @@ Godot Codex Bridge is designed to make agent actions visible and reviewable:
 - It supports dry-run previews.
 - It supports a pending queue for user review.
 - It creates snapshots before applying actions that touch files or the current scene.
+- Controlled Raw API is disabled by default.
+- Raw calls are allowlisted, audited in `.godot/godot_codex_bridge/raw_audit.jsonl`, and do not execute arbitrary scripts.
 - It stores runtime state inside the project-local `.godot/godot_codex_bridge/` directory, which should not be committed.
 
 This is still an editor automation plugin. Do not run commands from agents you do not trust.

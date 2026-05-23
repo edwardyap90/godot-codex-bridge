@@ -53,6 +53,28 @@ func _apply_action(action_type: String, action: Dictionary) -> Dictionary:
 			return _attach_script(action)
 		"connect_signal":
 			return _connect_signal(action)
+		"remove_node":
+			return _remove_node(action)
+		"rename_node":
+			return _rename_node(action)
+		"duplicate_node":
+			return _duplicate_node(action)
+		"reparent_node":
+			return _reparent_node(action)
+		"move_node":
+			return _move_node(action)
+		"set_owner":
+			return _set_owner(action)
+		"set_unique_name":
+			return _set_unique_name(action)
+		"add_group":
+			return _set_group(action, true)
+		"remove_group":
+			return _set_group(action, false)
+		"set_metadata":
+			return _set_metadata(action)
+		"remove_metadata":
+			return _remove_metadata(action)
 		"open_scene":
 			return _open_scene(action)
 		"refresh_filesystem":
@@ -262,6 +284,179 @@ func _connect_signal(action: Dictionary) -> Dictionary:
 	return _result("connect_signal", source_path, true, "Signal connected.")
 
 
+func _remove_node(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	var root := _edited_scene_root()
+	if node == null:
+		return _result("remove_node", node_path, false, "Node not found.")
+	if node == root:
+		return _result("remove_node", node_path, false, "Cannot remove the scene root.")
+
+	var parent := node.get_parent()
+	if parent != null:
+		parent.remove_child(node)
+	node.free()
+	_set_scene_dirty()
+	return _result("remove_node", node_path, true, "Node removed.")
+
+
+func _rename_node(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	var new_name := str(action.get("name", "")).strip_edges()
+	if node == null:
+		return _result("rename_node", node_path, false, "Node not found.")
+	if new_name.is_empty() or new_name.contains("/") or new_name.contains(":"):
+		return _result("rename_node", node_path, false, "Node name is invalid.")
+
+	node.name = new_name
+	_set_scene_dirty()
+	return _result("rename_node", _scene_node_path(node), true, "Node renamed.")
+
+
+func _duplicate_node(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	var root := _edited_scene_root()
+	if node == null:
+		return _result("duplicate_node", node_path, false, "Node not found.")
+	if node == root:
+		return _result("duplicate_node", node_path, false, "Cannot duplicate the scene root.")
+
+	var parent := node.get_parent()
+	if parent == null:
+		return _result("duplicate_node", node_path, false, "Node has no parent.")
+
+	var duplicate := node.duplicate(Node.DUPLICATE_SIGNALS | Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS)
+	if not duplicate is Node:
+		return _result("duplicate_node", node_path, false, "Duplicate failed.")
+	var duplicate_node := duplicate as Node
+	var new_name := str(action.get("name", "")).strip_edges()
+	if not new_name.is_empty():
+		duplicate_node.name = new_name
+	parent.add_child(duplicate_node)
+	parent.move_child(duplicate_node, node.get_index() + 1)
+	_assign_owner_recursive(duplicate_node, root)
+	_set_scene_dirty()
+	return _result("duplicate_node", _scene_node_path(duplicate_node), true, "Node duplicated.")
+
+
+func _reparent_node(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var new_parent_path := str(action.get("new_parent_path", action.get("parent_path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	var root := _edited_scene_root()
+	var new_parent := _find_scene_node(new_parent_path)
+	if node == null:
+		return _result("reparent_node", node_path, false, "Node not found.")
+	if node == root:
+		return _result("reparent_node", node_path, false, "Cannot reparent the scene root.")
+	if new_parent == null:
+		return _result("reparent_node", new_parent_path, false, "New parent not found.")
+	if node == new_parent or node.is_ancestor_of(new_parent):
+		return _result("reparent_node", node_path, false, "Cannot reparent a node under itself.")
+
+	var global_position := Vector2.ZERO
+	var had_node2d_position := false
+	if bool(action.get("keep_global_transform", true)) and node is Node2D:
+		global_position = (node as Node2D).global_position
+		had_node2d_position = true
+
+	var old_parent := node.get_parent()
+	if old_parent != null:
+		old_parent.remove_child(node)
+	new_parent.add_child(node)
+	if had_node2d_position:
+		(node as Node2D).global_position = global_position
+	_assign_owner_recursive(node, root)
+	_set_scene_dirty()
+	return _result("reparent_node", _scene_node_path(node), true, "Node reparented.")
+
+
+func _move_node(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	if node == null:
+		return _result("move_node", node_path, false, "Node not found.")
+	var parent := node.get_parent()
+	if parent == null:
+		return _result("move_node", node_path, false, "Node has no parent.")
+	var index := int(action.get("index", node.get_index()))
+	index = mini(maxi(index, 0), parent.get_child_count() - 1)
+	parent.move_child(node, index)
+	_set_scene_dirty()
+	return _result("move_node", _scene_node_path(node), true, "Node moved.")
+
+
+func _set_owner(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var owner_path := str(action.get("owner_path", ".")).strip_edges()
+	var node := _find_scene_node(node_path)
+	var owner := _find_scene_node(owner_path)
+	if node == null:
+		return _result("set_owner", node_path, false, "Node not found.")
+	if owner == null:
+		return _result("set_owner", owner_path, false, "Owner node not found.")
+	node.owner = owner
+	_set_scene_dirty()
+	return _result("set_owner", _scene_node_path(node), true, "Owner set.")
+
+
+func _set_unique_name(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	if node == null:
+		return _result("set_unique_name", node_path, false, "Node not found.")
+	node.unique_name_in_owner = bool(action.get("enabled", true))
+	_set_scene_dirty()
+	return _result("set_unique_name", _scene_node_path(node), true, "Unique name flag updated.")
+
+
+func _set_group(action: Dictionary, enabled: bool) -> Dictionary:
+	var action_type := "add_group" if enabled else "remove_group"
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var group_name := str(action.get("group", "")).strip_edges()
+	var node := _find_scene_node(node_path)
+	if node == null:
+		return _result(action_type, node_path, false, "Node not found.")
+	if group_name.is_empty() or group_name.contains("/") or group_name.contains(":"):
+		return _result(action_type, node_path, false, "Group name is invalid.")
+	if enabled:
+		node.add_to_group(group_name, bool(action.get("persistent", true)))
+	else:
+		node.remove_from_group(group_name)
+	_set_scene_dirty()
+	return _result(action_type, _scene_node_path(node), true, "Group updated.")
+
+
+func _set_metadata(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var key := str(action.get("key", "")).strip_edges()
+	var node := _find_scene_node(node_path)
+	if node == null:
+		return _result("set_metadata", node_path, false, "Node not found.")
+	if key.is_empty():
+		return _result("set_metadata", node_path, false, "Metadata key is invalid.")
+	node.set_meta(key, _decode_value(action.get("value")))
+	_set_scene_dirty()
+	return _result("set_metadata", _scene_node_path(node), true, "Metadata set.")
+
+
+func _remove_metadata(action: Dictionary) -> Dictionary:
+	var node_path := str(action.get("node_path", action.get("path", ""))).strip_edges()
+	var key := str(action.get("key", "")).strip_edges()
+	var node := _find_scene_node(node_path)
+	if node == null:
+		return _result("remove_metadata", node_path, false, "Node not found.")
+	if key.is_empty():
+		return _result("remove_metadata", node_path, false, "Metadata key is invalid.")
+	if node.has_meta(key):
+		node.remove_meta(key)
+	_set_scene_dirty()
+	return _result("remove_metadata", _scene_node_path(node), true, "Metadata removed.")
+
+
 func _open_scene(action: Dictionary) -> Dictionary:
 	var path := _normalize_project_path(str(action.get("path", "")))
 	if path.is_empty():
@@ -344,6 +539,13 @@ func _scene_node_path(node: Node) -> String:
 	if root == null or node == root:
 		return "."
 	return str(root.get_path_to(node))
+
+
+func _assign_owner_recursive(node: Node, owner: Node) -> void:
+	node.owner = owner
+	for child in node.get_children():
+		if child is Node:
+			_assign_owner_recursive(child as Node, owner)
 
 
 func _set_node_script(node: Node, raw_script_path: String) -> Dictionary:

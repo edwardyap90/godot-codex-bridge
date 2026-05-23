@@ -70,6 +70,12 @@ if CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/
   cat /tmp/godot_codex_bridge_guard_ping.$$
   rm -f /tmp/godot_codex_bridge_guard_ping.$$ /tmp/godot_codex_bridge_guard_ping_err.$$
   echo
+  echo "Project identity:"
+  CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/tools/godot_bridge_send.sh" get_project_identity || true
+  echo
+  echo "Raw mode status:"
+  CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/tools/godot_bridge_send.sh" raw-status || true
+  echo
   echo "Bridge guard: OK"
   exit 0
 fi

@@ -12,6 +12,8 @@ const SNAPSHOT_LIMIT := 30
 const PROPERTY_LIMIT_DEFAULT := 120
 const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
+const CONTROL_PLANE_SCHEMA_VERSION := 2
+const RAW_AUDIT_LIMIT := 100
 
 signal request_handled(command: String, ok: bool, message: String, request_id: String)
 signal request_observed(entry: Dictionary)
@@ -29,6 +31,7 @@ var last_run_report: Dictionary = {}
 var run_reports: Array = []
 var pending_action_batches: Array = []
 var snapshots: Array = []
+var raw_audit_entries: Array = []
 
 
 func setup(p_editor_interface, p_port: int = DEFAULT_PORT) -> void:
@@ -39,6 +42,7 @@ func setup(p_editor_interface, p_port: int = DEFAULT_PORT) -> void:
 	token = OS.get_environment("CODEX_GODOT_BRIDGE_TOKEN").strip_edges()
 	_load_pending_actions()
 	_load_snapshot_index()
+	_load_raw_audit()
 
 
 func _ready() -> void:
@@ -61,6 +65,7 @@ func _process(_delta: float) -> void:
 
 
 func handle_request(request: Dictionary) -> Dictionary:
+	request["_bridge_started_ticks"] = Time.get_ticks_msec()
 	var command := str(request.get("command", request.get("type", ""))).strip_edges()
 
 	var auth_error := _authorize(request)
@@ -81,7 +86,8 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 		"ping":
 			return _response(true, "pong", {
 				"project": ProjectSettings.get_setting("application/config/name", ""),
-				"port": port
+				"port": port,
+				"schema_version": CONTROL_PLANE_SCHEMA_VERSION
 			})
 		"get_project_identity":
 			return _response(true, "ok", {
@@ -95,6 +101,27 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _response(true, "ok", {
 				"capabilities": _editor_capabilities()
 			})
+		"list_capabilities_v2":
+			return _response(true, "ok", {
+				"capabilities": _editor_capabilities_v2()
+			})
+		"get_command_timeline":
+			return _response(true, "ok", {
+				"timeline": history.duplicate(true),
+				"history_path": _history_path()
+			})
+		"get_raw_mode_status":
+			return _response(true, "ok", {
+				"raw_mode": _raw_mode_status()
+			})
+		"raw_editor_call":
+			return _raw_editor_call(request)
+		"raw_object_call":
+			return _raw_object_call(request)
+		"raw_classdb_query":
+			return _raw_classdb_query(request)
+		"raw_project_call":
+			return _raw_project_call(request)
 		"execute_editor_command":
 			return _execute_editor_command(request)
 		"get_command_history":
@@ -153,6 +180,8 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _get_inspector_properties(request)
 		"set_inspector_property":
 			return _set_inspector_property(request)
+		"set_inspector_properties":
+			return _set_inspector_properties(request)
 		"select_node":
 			return _select_node(request)
 		"get_node_details":
@@ -167,6 +196,12 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _get_resource_info(request)
 		"get_resource_import_info":
 			return _get_resource_import_info(request)
+		"create_resource":
+			return _create_resource(request)
+		"set_resource_property":
+			return _set_resource_property(request)
+		"save_resource":
+			return _save_resource(request)
 		"scan_resource_filesystem":
 			return _scan_resource_filesystem(request)
 		"reimport_resources":
@@ -233,6 +268,8 @@ func bridge_status() -> Dictionary:
 	var file_root := _file_bridge_root()
 	var file_enabled := _file_bridge_enabled()
 	return {
+		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+		"control_plane": _control_plane_status(),
 		"project": _project_identity(),
 		"primary_transport": "file" if file_enabled else "tcp",
 		"running": running,
@@ -247,6 +284,9 @@ func bridge_status() -> Dictionary:
 		"snapshot_count": snapshots.size(),
 		"snapshots_path": _snapshots_index_path(),
 		"last_snapshot": snapshots.back() if not snapshots.is_empty() else {},
+		"raw_mode": _raw_mode_status(),
+		"raw_audit_count": raw_audit_entries.size(),
+		"raw_audit_path": _raw_audit_path(),
 		"last_run_report": _run_report_summary(last_run_report),
 		"run_reports_path": _run_reports_path(),
 		"tcp": {
@@ -262,6 +302,17 @@ func bridge_status() -> Dictionary:
 			"inbox": file_root.path_join("inbox"),
 			"outbox": file_root.path_join("outbox")
 		}
+	}
+
+
+func _control_plane_status() -> Dictionary:
+	return {
+		"name": "Godot Control Plane",
+		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+		"godot_version": Engine.get_version_info(),
+		"default_mode": "safe",
+		"supported_modes": ["safe", "raw"],
+		"raw_mode_enabled": _raw_api_enabled()
 	}
 
 
@@ -284,7 +335,8 @@ func _editor_capabilities() -> Dictionary:
 		],
 		"inspector": [
 			"get_inspector_properties",
-			"set_inspector_property"
+			"set_inspector_property",
+			"set_inspector_properties"
 		],
 		"project_settings": [
 			"get_project_settings",
@@ -300,6 +352,9 @@ func _editor_capabilities() -> Dictionary:
 			"get_resource_files",
 			"get_resource_info",
 			"get_resource_import_info",
+			"create_resource",
+			"set_resource_property",
+			"save_resource",
 			"scan_resource_filesystem",
 			"reimport_resources"
 		],
@@ -328,6 +383,442 @@ func _editor_capabilities() -> Dictionary:
 			"restore_snapshot"
 		]
 	}
+
+
+func _editor_capabilities_v2() -> Dictionary:
+	var legacy := _editor_capabilities()
+	var safe_commands: Array = []
+	for key in legacy.keys():
+		if typeof(legacy[key]) == TYPE_ARRAY:
+			for item in legacy[key] as Array:
+				if not safe_commands.has(str(item)):
+					safe_commands.append(str(item))
+
+	return {
+		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+		"godot_version": Engine.get_version_info(),
+		"project": _project_identity(),
+		"transports": legacy.get("transports", []),
+		"modes": {
+			"default": "safe",
+			"safe": {
+				"enabled": true,
+				"commands": safe_commands
+			},
+			"raw": _raw_mode_status()
+		},
+		"protocol": {
+			"request_fields": ["schema_version", "request_id", "project_root", "mode", "dry_run", "transaction_id", "command"],
+			"response_fields": ["ok", "message", "data", "ui_feedback", "warnings", "changed_paths", "schema_version"]
+		},
+		"safe_action_types": _supported_action_types(),
+		"raw_commands": [
+			"raw_editor_call",
+			"raw_object_call",
+			"raw_classdb_query",
+			"raw_project_call"
+		],
+		"auditing": {
+			"history_path": _history_path(),
+			"raw_audit_path": _raw_audit_path(),
+			"timeline_command": "get_command_timeline"
+		},
+		"legacy": legacy
+	}
+
+
+func _raw_mode_status() -> Dictionary:
+	return {
+		"enabled": _raw_api_enabled(),
+		"setting": "codex_bridge/raw_api_enabled",
+		"env": "CODEX_GODOT_RAW_API_ENABLED",
+		"executes_arbitrary_code": false,
+		"allowed_commands": [
+			"raw_editor_call",
+			"raw_object_call",
+			"raw_classdb_query",
+			"raw_project_call"
+		],
+		"allowed_editor_targets": {
+			"editor_interface": _raw_allowed_editor_methods("editor_interface"),
+			"selection": _raw_allowed_editor_methods("selection"),
+			"resource_filesystem": _raw_allowed_editor_methods("resource_filesystem")
+		},
+		"allowed_project_targets": {
+			"ProjectSettings": _raw_allowed_project_methods("ProjectSettings"),
+			"InputMap": _raw_allowed_project_methods("InputMap"),
+			"ResourceLoader": _raw_allowed_project_methods("ResourceLoader")
+		},
+		"audit_path": _raw_audit_path(),
+		"audit_count": raw_audit_entries.size()
+	}
+
+
+func _raw_api_enabled() -> bool:
+	var raw_enabled := OS.get_environment("CODEX_GODOT_RAW_API_ENABLED").strip_edges().to_lower()
+	if raw_enabled in ["1", "true", "yes", "on"]:
+		return true
+	if raw_enabled in ["0", "false", "no", "off"]:
+		return false
+	return bool(ProjectSettings.get_setting("codex_bridge/raw_api_enabled", false))
+
+
+func _raw_disabled_response(command: String) -> Dictionary:
+	return _response(false, "Raw API mode is disabled. Set codex_bridge/raw_api_enabled=true to enable controlled raw calls.", {
+		"raw_mode": _raw_mode_status(),
+		"command": command
+	}, ["Raw commands are rejected while raw mode is disabled."])
+
+
+func _raw_editor_call(request: Dictionary) -> Dictionary:
+	if not _raw_api_enabled():
+		return _raw_disabled_response("raw_editor_call")
+
+	var target_name := str(request.get("target", "editor_interface")).strip_edges()
+	var method := str(request.get("method", request.get("name", ""))).strip_edges()
+	if method.is_empty():
+		return _response(false, "Missing raw editor method.")
+	if not _raw_allowed_editor_methods(target_name).has(method):
+		return _response(false, "Raw editor method is not allowed: " + target_name + "." + method, {
+			"allowed": _raw_allowed_editor_methods(target_name)
+		})
+
+	var target = _raw_editor_target(target_name)
+	if target == null:
+		return _response(false, "Raw editor target is not available: " + target_name)
+	if not target.has_method(method):
+		return _response(false, "Raw editor target does not have method: " + method)
+
+	var args := _decode_raw_args(request.get("args", []))
+	if bool(request.get("dry_run", false)):
+		return _response(true, "Raw editor call preview.", {
+			"target": target_name,
+			"method": method,
+			"arg_count": args.size(),
+			"dry_run": true
+		})
+
+	var result = target.callv(method, args)
+	return _response(true, "Raw editor call executed.", {
+		"target": target_name,
+		"method": method,
+		"result": _encode_value(result)
+	}, [], [], {
+		"type": "raw_editor_call",
+		"target": target_name,
+		"method": method
+	})
+
+
+func _raw_object_call(request: Dictionary) -> Dictionary:
+	if not _raw_api_enabled():
+		return _raw_disabled_response("raw_object_call")
+
+	var resolved := _resolve_raw_object(request)
+	if not bool(resolved.get("ok", false)):
+		return _response(false, str(resolved.get("message", "")))
+
+	var object := resolved.get("object") as Object
+	var method := str(request.get("method", request.get("name", ""))).strip_edges()
+	if method.is_empty():
+		return _response(false, "Missing raw object method.")
+	var kind := str(resolved.get("kind", "object"))
+	if not _raw_allowed_object_methods(kind).has(method):
+		return _response(false, "Raw object method is not allowed: " + kind + "." + method, {
+			"allowed": _raw_allowed_object_methods(kind)
+		})
+	if not object.has_method(method):
+		return _response(false, "Raw object target does not have method: " + method)
+
+	var args := _decode_raw_args(request.get("args", []))
+	var snapshot := {}
+	if _raw_mutating_object_methods().has(method):
+		snapshot = _create_object_snapshot(object, str(resolved.get("path", "")), "raw_object_call " + method)
+		if not bool(snapshot.get("ok", true)):
+			return _response(false, "Failed to create raw call snapshot; method was not called.", {
+				"snapshot": snapshot
+			})
+
+	if bool(request.get("dry_run", false)):
+		return _response(true, "Raw object call preview.", {
+			"target": resolved.get("target", {}),
+			"method": method,
+			"arg_count": args.size(),
+			"dry_run": true,
+			"snapshot": _snapshot_summary(snapshot) if not snapshot.is_empty() else {}
+		})
+
+	var result = object.callv(method, args)
+	if object is Node and _raw_mutating_object_methods().has(method):
+		_set_scene_dirty()
+		_focus_editor_node(object as Node)
+	elif object is Resource and _raw_mutating_object_methods().has(method):
+		var resource := object as Resource
+		if not resource.resource_path.is_empty():
+			ResourceSaver.save(resource, resource.resource_path)
+
+	return _response(true, "Raw object call executed.", {
+		"target": resolved.get("target", {}),
+		"method": method,
+		"result": _encode_value(result),
+		"snapshot": _snapshot_summary(snapshot) if not snapshot.is_empty() else {}
+	}, [], _changed_paths_for_raw_object(resolved), {
+		"type": "raw_object_call",
+		"target": resolved.get("target", {}),
+		"method": method
+	})
+
+
+func _raw_classdb_query(request: Dictionary) -> Dictionary:
+	if not _raw_api_enabled():
+		return _raw_disabled_response("raw_classdb_query")
+
+	var query := str(request.get("query", request.get("query_type", "class_exists"))).strip_edges()
+	var db_class_name := str(request.get("class", request.get("class_name", ""))).strip_edges()
+	match query:
+		"class_exists":
+			return _response(true, "ok", {
+				"query": query,
+				"class": db_class_name,
+				"exists": ClassDB.class_exists(db_class_name)
+			})
+		"can_instantiate":
+			return _response(true, "ok", {
+				"query": query,
+				"class": db_class_name,
+				"can_instantiate": ClassDB.class_exists(db_class_name) and ClassDB.can_instantiate(db_class_name)
+			})
+		"property_list":
+			if not ClassDB.class_exists(db_class_name):
+				return _response(false, "Class does not exist: " + db_class_name)
+			return _response(true, "ok", {
+				"query": query,
+				"class": db_class_name,
+				"properties": _encode_value(ClassDB.class_get_property_list(db_class_name, true))
+			})
+		"method_list":
+			if not ClassDB.class_exists(db_class_name):
+				return _response(false, "Class does not exist: " + db_class_name)
+			return _response(true, "ok", {
+				"query": query,
+				"class": db_class_name,
+				"methods": _encode_value(ClassDB.class_get_method_list(db_class_name, true))
+			})
+		"signal_list":
+			if not ClassDB.class_exists(db_class_name):
+				return _response(false, "Class does not exist: " + db_class_name)
+			return _response(true, "ok", {
+				"query": query,
+				"class": db_class_name,
+				"signals": _encode_value(ClassDB.class_get_signal_list(db_class_name, true))
+			})
+		_:
+			return _response(false, "Unsupported ClassDB raw query: " + query, {
+				"allowed": ["class_exists", "can_instantiate", "property_list", "method_list", "signal_list"]
+			})
+
+
+func _raw_project_call(request: Dictionary) -> Dictionary:
+	if not _raw_api_enabled():
+		return _raw_disabled_response("raw_project_call")
+
+	var target_name := str(request.get("target", "ProjectSettings")).strip_edges()
+	var method := str(request.get("method", request.get("name", ""))).strip_edges()
+	if method.is_empty():
+		return _response(false, "Missing raw project method.")
+	if not _raw_allowed_project_methods(target_name).has(method):
+		return _response(false, "Raw project method is not allowed: " + target_name + "." + method, {
+			"allowed": _raw_allowed_project_methods(target_name)
+		})
+
+	var target = _raw_project_target(target_name)
+	if target == null:
+		return _response(false, "Raw project target is not available: " + target_name)
+	if not target.has_method(method):
+		return _response(false, "Raw project target does not have method: " + method)
+
+	var args := _decode_raw_args(request.get("args", []))
+	var snapshot := {}
+	if target_name in ["ProjectSettings", "InputMap"] and _raw_mutating_project_methods().has(method):
+		snapshot = _create_project_file_snapshot("raw_project_call " + target_name + "." + method)
+		if not bool(snapshot.get("ok", true)):
+			return _response(false, "Failed to create project snapshot; raw project call was not executed.", {
+				"snapshot": snapshot
+			})
+
+	if bool(request.get("dry_run", false)):
+		return _response(true, "Raw project call preview.", {
+			"target": target_name,
+			"method": method,
+			"arg_count": args.size(),
+			"dry_run": true,
+			"snapshot": _snapshot_summary(snapshot) if not snapshot.is_empty() else {}
+		})
+
+	var result = target.callv(method, args)
+	var changed_paths: Array = []
+	if target_name in ["ProjectSettings", "InputMap"] and _raw_mutating_project_methods().has(method):
+		_append_unique_path(changed_paths, "res://project.godot")
+	return _response(true, "Raw project call executed.", {
+		"target": target_name,
+		"method": method,
+		"result": _encode_value(result),
+		"snapshot": _snapshot_summary(snapshot) if not snapshot.is_empty() else {}
+	}, [], changed_paths, {
+		"type": "raw_project_call",
+		"target": target_name,
+		"method": method
+	})
+
+
+func _raw_allowed_editor_methods(target_name: String) -> Array:
+	match target_name:
+		"editor_interface":
+			return ["save_scene", "open_scene_from_path", "reload_scene_from_path", "play_main_scene", "play_current_scene", "play_custom_scene", "stop_playing_scene", "edit_node", "mark_scene_as_unsaved"]
+		"selection":
+			return ["clear", "add_node"]
+		"resource_filesystem":
+			return ["scan", "scan_sources", "reimport_files"]
+		_:
+			return []
+
+
+func _raw_editor_target(target_name: String):
+	match target_name:
+		"editor_interface":
+			return editor_interface
+		"selection":
+			return _editor_selection()
+		"resource_filesystem":
+			return _editor_resource_filesystem()
+		_:
+			return null
+
+
+func _raw_allowed_object_methods(kind: String) -> Array:
+	match kind:
+		"node":
+			return ["get", "set", "add_to_group", "remove_from_group", "set_meta", "remove_meta"]
+		"resource":
+			return ["get", "set", "set_meta", "remove_meta"]
+		_:
+			return ["get"]
+
+
+func _raw_mutating_object_methods() -> Array:
+	return ["set", "add_to_group", "remove_from_group", "set_meta", "remove_meta"]
+
+
+func _raw_allowed_project_methods(target_name: String) -> Array:
+	match target_name:
+		"ProjectSettings":
+			return ["get_setting", "has_setting", "set_setting", "clear", "save"]
+		"InputMap":
+			return ["get_actions", "has_action", "add_action", "erase_action", "action_set_deadzone", "action_erase_events"]
+		"ResourceLoader":
+			return ["exists", "load", "get_dependencies"]
+		_:
+			return []
+
+
+func _raw_mutating_project_methods() -> Array:
+	return ["set_setting", "clear", "save", "add_action", "erase_action", "action_set_deadzone", "action_erase_events"]
+
+
+func _raw_project_target(target_name: String):
+	match target_name:
+		"ProjectSettings":
+			return ProjectSettings
+		"InputMap":
+			return InputMap
+		"ResourceLoader":
+			return ResourceLoader
+		_:
+			return null
+
+
+func _resolve_raw_object(request: Dictionary) -> Dictionary:
+	var resource_path := str(request.get("resource_path", "")).strip_edges()
+	if not resource_path.is_empty():
+		var normalized_resource_path := _normalize_resource_path(resource_path)
+		if normalized_resource_path.is_empty():
+			return {
+				"ok": false,
+				"message": "Resource path is invalid or not allowed."
+			}
+		var resource := load(normalized_resource_path)
+		if not resource is Resource:
+			return {
+				"ok": false,
+				"message": "Cannot load resource: " + normalized_resource_path
+			}
+		return {
+			"ok": true,
+			"object": resource,
+			"kind": "resource",
+			"path": normalized_resource_path,
+			"target": {
+				"kind": "resource",
+				"path": normalized_resource_path,
+				"class": (resource as Resource).get_class()
+			}
+		}
+
+	var node_path := str(request.get("node_path", request.get("path", ""))).strip_edges()
+	var node := _find_scene_node(node_path)
+	if node == null:
+		return {
+			"ok": false,
+			"message": "Node target not found."
+		}
+	var root := _edited_scene_root()
+	var normalized_node_path := "." if node == root else str(root.get_path_to(node))
+	return {
+		"ok": true,
+		"object": node,
+		"kind": "node",
+		"path": normalized_node_path,
+		"target": {
+			"kind": "node",
+			"path": normalized_node_path,
+			"class": node.get_class(),
+			"script": _script_path(node)
+		}
+	}
+
+
+func _decode_raw_args(raw_args) -> Array:
+	var args: Array = []
+	if typeof(raw_args) != TYPE_ARRAY:
+		return args
+	for item in raw_args as Array:
+		args.append(_decode_raw_arg(item))
+	return args
+
+
+func _decode_raw_arg(value):
+	if typeof(value) == TYPE_DICTIONARY:
+		var value_dict := value as Dictionary
+		if value_dict.has("node_path"):
+			return _find_scene_node(str(value_dict.get("node_path", "")))
+		if value_dict.has("resource_path") and str(value_dict.get("type", "")) != "Resource":
+			var resource_path := _normalize_resource_path(str(value_dict.get("resource_path", "")))
+			return load(resource_path) if not resource_path.is_empty() else null
+		if value_dict.has("packed_string_array"):
+			return PackedStringArray(value_dict.get("packed_string_array", []))
+	return _decode_value(value)
+
+
+func _changed_paths_for_raw_object(resolved: Dictionary) -> Array:
+	var paths: Array = []
+	var path := str(resolved.get("path", ""))
+	if str(resolved.get("kind", "")) == "resource":
+		_append_unique_path(paths, path)
+	else:
+		var root := _edited_scene_root()
+		if root != null and not root.scene_file_path.is_empty():
+			_append_unique_path(paths, root.scene_file_path)
+	return paths
 
 
 func _execute_editor_command(request: Dictionary) -> Dictionary:
@@ -462,11 +953,15 @@ func _validate_project_target(request: Dictionary) -> String:
 	return ""
 
 
-func _response(ok: bool, message: String, data: Dictionary = {}) -> Dictionary:
+func _response(ok: bool, message: String, data: Dictionary = {}, warnings: Array = [], changed_paths: Array = [], ui_feedback: Dictionary = {}) -> Dictionary:
 	return {
+		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
 		"ok": ok,
 		"message": message,
-		"data": data
+		"data": data,
+		"warnings": warnings,
+		"changed_paths": changed_paths,
+		"ui_feedback": ui_feedback
 	}
 
 
@@ -493,22 +988,117 @@ func _request_summary(command: String, data: Dictionary) -> String:
 			return ""
 
 
+func _request_mode(request: Dictionary) -> String:
+	var mode := str(request.get("mode", "safe")).strip_edges().to_lower()
+	if mode.is_empty():
+		return "safe"
+	return mode
+
+
+func _ui_feedback_for_response(command: String, data: Dictionary) -> Dictionary:
+	if data.has("visual_feedback"):
+		return {
+			"type": "visual_feedback",
+			"command": command,
+			"details": data.get("visual_feedback", {})
+		}
+	if data.has("selection"):
+		return {
+			"type": "selection",
+			"command": command,
+			"details": data.get("selection", [])
+		}
+	if data.has("target"):
+		return {
+			"type": "inspector_target",
+			"command": command,
+			"details": data.get("target", {})
+		}
+	if data.has("report"):
+		var report := data.get("report", {}) as Dictionary
+		return {
+			"type": "run_report",
+			"command": command,
+			"ok": bool(report.get("ok", false)),
+			"errors": (report.get("errors", []) as Array).size(),
+			"warnings": (report.get("warnings", []) as Array).size()
+		}
+	return {
+		"type": "command",
+		"command": command
+	}
+
+
+func _changed_paths_for_response(command: String, data: Dictionary) -> Array:
+	var paths: Array = []
+	if data.has("changed_paths") and typeof(data.get("changed_paths")) == TYPE_ARRAY:
+		for item in data.get("changed_paths", []) as Array:
+			_append_unique_path(paths, str(item))
+	if data.has("snapshot"):
+		var snapshot := data.get("snapshot", {}) as Dictionary
+		var scene_path := str(snapshot.get("scene_path", ""))
+		_append_unique_path(paths, scene_path)
+	if data.has("action_result"):
+		var action_result := data.get("action_result", {}) as Dictionary
+		for item in action_result.get("results", []) as Array:
+			if typeof(item) == TYPE_DICTIONARY:
+				_append_unique_path(paths, str((item as Dictionary).get("path", "")))
+	if data.has("path"):
+		_append_unique_path(paths, str(data.get("path", "")))
+	match command:
+		"set_project_setting", "add_input_action", "remove_input_action":
+			_append_unique_path(paths, "res://project.godot")
+	return paths
+
+
+func _append_unique_path(paths: Array, path: String) -> void:
+	var value := path.strip_edges()
+	if value.is_empty() or value == ".":
+		return
+	if not paths.has(value):
+		paths.append(value)
+
+
 func _finish_request(command: String, request: Dictionary, response: Dictionary) -> Dictionary:
 	var request_id := str(request.get("request_id", ""))
 	var data := response.get("data", {}) as Dictionary
+	var started_ticks := int(request.get("_bridge_started_ticks", Time.get_ticks_msec()))
+	var duration_ms := maxi(Time.get_ticks_msec() - started_ticks, 0)
+	var ui_feedback := response.get("ui_feedback", {})
+	if typeof(ui_feedback) != TYPE_DICTIONARY or (ui_feedback as Dictionary).is_empty():
+		ui_feedback = _ui_feedback_for_response(command, data)
+	var changed_paths := response.get("changed_paths", [])
+	if typeof(changed_paths) != TYPE_ARRAY or (changed_paths as Array).is_empty():
+		changed_paths = _changed_paths_for_response(command, data)
+	var warnings := response.get("warnings", [])
+	if typeof(warnings) != TYPE_ARRAY:
+		warnings = []
+	response["schema_version"] = int(response.get("schema_version", CONTROL_PLANE_SCHEMA_VERSION))
+	response["ui_feedback"] = ui_feedback
+	response["changed_paths"] = changed_paths
+	response["warnings"] = warnings
 	var entry := {
+		"schema_version": int(response.get("schema_version", CONTROL_PLANE_SCHEMA_VERSION)),
 		"command": command,
 		"ok": bool(response.get("ok", false)),
 		"message": str(response.get("message", "")),
 		"request_id": request_id,
+		"transaction_id": str(request.get("transaction_id", "")),
+		"mode": _request_mode(request),
 		"updated_at": Time.get_datetime_string_from_system(),
+		"duration_ms": duration_ms,
 		"dry_run": bool(request.get("dry_run", false)),
 		"client_cwd": str(request.get("client_cwd", "")),
 		"summary": _request_summary(command, data),
-		"visual_feedback": data.get("visual_feedback", {})
+		"visual_feedback": data.get("visual_feedback", {}),
+		"ui_feedback": ui_feedback,
+		"changed_paths": changed_paths,
+		"warnings": warnings
 	}
 	last_request = entry
 	_record_history(entry)
+	if command.begins_with("raw_"):
+		_record_raw_audit(entry)
 	request_handled.emit(command, bool(response.get("ok", false)), str(response.get("message", "")), request_id)
 	request_observed.emit(entry)
 	return response
@@ -603,6 +1193,102 @@ func _get_resource_import_info(request: Dictionary) -> Dictionary:
 		"resource_path": path,
 		"import": _resource_import_info(path)
 	})
+
+
+func _create_resource(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("resource_path", ""))))
+	if path.is_empty():
+		return _response(false, "Resource path is invalid.")
+	if not (path.get_extension().to_lower() in ["tres", "res"]):
+		return _response(false, "Resource path must end with .tres or .res.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Resource already exists: " + path)
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create resource directory: " + error_string(dir_error), {
+			"path": path
+		})
+
+	var resource_type := str(request.get("resource_type", request.get("type", "Resource"))).strip_edges()
+	var resource := _instantiate_resource(resource_type, request.get("properties", {}))
+	if resource == null:
+		return _response(false, "Cannot instantiate Resource type: " + resource_type)
+	resource.resource_path = path
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], "create_resource " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; resource was not saved.", {
+			"snapshot": snapshot
+		})
+
+	var save_error := ResourceSaver.save(resource, path)
+	if save_error != OK:
+		return _response(false, "Failed to save resource: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		}, [], [path])
+	_refresh_editor_filesystem()
+	return _response(true, "Resource created.", {
+		"path": path,
+		"resource": _resource_file_info(path, true),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _set_resource_property(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("resource_path", ""))))
+	if path.is_empty():
+		return _response(false, "Resource path is invalid.")
+	var property_name := str(request.get("property", "")).strip_edges()
+	if property_name.is_empty():
+		return _response(false, "Missing property.")
+
+	var resource := load(path)
+	if not resource is Resource:
+		return _response(false, "Cannot load resource: " + path)
+	if not _has_property(resource, property_name):
+		return _response(false, "Resource does not have property: " + property_name)
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], "set_resource_property " + path + "." + property_name)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; resource was not modified.", {
+			"snapshot": snapshot
+		})
+
+	var before_value = resource.get(property_name)
+	resource.set(property_name, _decode_value(request.get("value")))
+	var save_error := ResourceSaver.save(resource, path)
+	return _response(save_error == OK, "Resource property updated." if save_error == OK else "Resource property updated, but saving failed: " + error_string(save_error), {
+		"path": path,
+		"property": property_name,
+		"before": _encode_value(before_value),
+		"after": _encode_value(resource.get(property_name)),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _save_resource(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("resource_path", ""))))
+	if path.is_empty():
+		return _response(false, "Resource path is invalid.")
+	var resource := load(path)
+	if not resource is Resource:
+		return _response(false, "Cannot load resource: " + path)
+	var save_error := ResourceSaver.save(resource, path)
+	return _response(save_error == OK, "Resource saved." if save_error == OK else "Failed to save resource: " + error_string(save_error), {
+		"path": path,
+		"resource": _resource_file_info(path, true)
+	}, [], [path] if save_error == OK else [])
 
 
 func _scan_resource_filesystem(request: Dictionary) -> Dictionary:
@@ -1445,6 +2131,75 @@ func _set_inspector_property(request: Dictionary) -> Dictionary:
 	})
 
 
+func _set_inspector_properties(request: Dictionary) -> Dictionary:
+	var resolved := _resolve_inspector_object(request)
+	if not bool(resolved.get("ok", false)):
+		return _response(false, str(resolved.get("message", "")))
+
+	var object := resolved.get("object") as Object
+	var raw_properties = request.get("properties", {})
+	var property_items: Array = []
+	if typeof(raw_properties) == TYPE_DICTIONARY:
+		var property_dict := raw_properties as Dictionary
+		for property_name in property_dict.keys():
+			property_items.append({
+				"property": str(property_name),
+				"value": property_dict[property_name]
+			})
+	elif typeof(raw_properties) == TYPE_ARRAY:
+		property_items = raw_properties as Array
+	else:
+		return _response(false, "set_inspector_properties requires properties as Dictionary or Array.")
+
+	if property_items.is_empty():
+		return _response(false, "No properties provided.")
+
+	for item in property_items:
+		if typeof(item) != TYPE_DICTIONARY:
+			return _response(false, "Property item is not a Dictionary.")
+		var property_name := str((item as Dictionary).get("property", "")).strip_edges()
+		if property_name.is_empty():
+			return _response(false, "Missing property.")
+		if not _has_property(object, property_name):
+			return _response(false, "Target does not have property: " + property_name)
+
+	var snapshot := _create_object_snapshot(object, str(resolved.get("path", "")), "set_inspector_properties")
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; properties were not set.", {
+			"snapshot": snapshot
+		})
+
+	var changes: Array = []
+	for item in property_items:
+		var property_item := item as Dictionary
+		var property_name := str(property_item.get("property", "")).strip_edges()
+		var before_value = object.get(property_name)
+		_set_object_property(object, property_name, _decode_value(property_item.get("value")))
+		changes.append({
+			"property": property_name,
+			"before": _encode_value(before_value),
+			"after": _encode_value(object.get(property_name))
+		})
+
+	var changed_paths := _changed_paths_for_raw_object(resolved)
+	if object is Node:
+		_set_scene_dirty()
+		_focus_editor_node(object as Node)
+	elif object is Resource:
+		var resource := object as Resource
+		if not resource.resource_path.is_empty():
+			ResourceSaver.save(resource, resource.resource_path)
+
+	return _response(true, "Properties set.", {
+		"target": resolved.get("target", {}),
+		"changes": changes,
+		"snapshot": _snapshot_summary(snapshot) if not snapshot.is_empty() else {}
+	}, [], changed_paths, {
+		"type": "inspector_target",
+		"target": resolved.get("target", {})
+	})
+
+
 func _resolve_inspector_object(request: Dictionary) -> Dictionary:
 	var resource_path := str(request.get("resource_path", "")).strip_edges()
 	if not resource_path.is_empty():
@@ -1746,8 +2501,10 @@ func _focus_path_for_action(action: Dictionary, result: Dictionary) -> String:
 	match action_type:
 		"add_node":
 			return str(result.get("path", "")).strip_edges()
-		"set_property", "attach_script":
+		"set_property", "attach_script", "rename_node", "duplicate_node", "move_node", "set_owner", "set_unique_name", "add_group", "remove_group", "set_metadata", "remove_metadata":
 			return str(action.get("node_path", action.get("path", ""))).strip_edges()
+		"reparent_node":
+			return str(result.get("path", action.get("node_path", action.get("path", "")))).strip_edges()
 		"connect_signal":
 			var target_path := str(action.get("target_path", "")).strip_edges()
 			if not target_path.is_empty():
@@ -1825,18 +2582,7 @@ func _preview_action(index: int, action: Dictionary) -> Dictionary:
 	if action_type.is_empty():
 		ok = false
 		message = "Missing type."
-	elif not (action_type in [
-		"write_file",
-		"append_file",
-		"make_dir",
-		"create_scene",
-		"open_scene",
-		"refresh_filesystem",
-		"add_node",
-		"set_property",
-		"attach_script",
-		"connect_signal"
-	]):
+	elif not (action_type in _supported_action_types()):
 		ok = false
 		message = "Unsupported action type: " + action_type
 	elif action_type in ["write_file", "append_file", "make_dir", "create_scene", "open_scene"]:
@@ -1865,6 +2611,22 @@ func _preview_action(index: int, action: Dictionary) -> Dictionary:
 		if str(action.get("signal", "")).strip_edges().is_empty() or str(action.get("method", "")).strip_edges().is_empty():
 			ok = false
 			message = "Missing signal or method."
+	elif action_type in ["remove_node", "rename_node", "duplicate_node", "reparent_node", "move_node", "set_owner", "set_unique_name", "add_group", "remove_group", "set_metadata", "remove_metadata"]:
+		if str(action.get("node_path", action.get("path", ""))).strip_edges().is_empty():
+			ok = false
+			message = "Missing node_path."
+		elif action_type == "rename_node" and str(action.get("name", "")).strip_edges().is_empty():
+			ok = false
+			message = "Missing name."
+		elif action_type == "reparent_node" and str(action.get("new_parent_path", action.get("parent_path", ""))).strip_edges().is_empty():
+			ok = false
+			message = "Missing new_parent_path."
+		elif action_type in ["add_group", "remove_group"] and str(action.get("group", "")).strip_edges().is_empty():
+			ok = false
+			message = "Missing group."
+		elif action_type in ["set_metadata", "remove_metadata"] and str(action.get("key", "")).strip_edges().is_empty():
+			ok = false
+			message = "Missing metadata key."
 
 	if message.is_empty():
 		message = "Will apply: " + action_type
@@ -1876,6 +2638,32 @@ func _preview_action(index: int, action: Dictionary) -> Dictionary:
 		"target": target,
 		"message": message
 	}
+
+
+func _supported_action_types() -> Array:
+	return [
+		"write_file",
+		"append_file",
+		"make_dir",
+		"create_scene",
+		"open_scene",
+		"refresh_filesystem",
+		"add_node",
+		"set_property",
+		"attach_script",
+		"connect_signal",
+		"remove_node",
+		"rename_node",
+		"duplicate_node",
+		"reparent_node",
+		"move_node",
+		"set_owner",
+		"set_unique_name",
+		"add_group",
+		"remove_group",
+		"set_metadata",
+		"remove_metadata"
+	]
 
 
 func _action_target(action_type: String, action: Dictionary) -> String:
@@ -1890,6 +2678,10 @@ func _action_target(action_type: String, action: Dictionary) -> String:
 			return str(action.get("node_path", action.get("path", ""))) + " -> " + str(action.get("script_path", ""))
 		"connect_signal":
 			return str(action.get("source_path", "")) + "." + str(action.get("signal", "")) + " -> " + str(action.get("target_path", "")) + "." + str(action.get("method", ""))
+		"remove_node", "rename_node", "duplicate_node", "move_node", "set_owner", "set_unique_name", "add_group", "remove_group", "set_metadata", "remove_metadata":
+			return str(action.get("node_path", action.get("path", "")))
+		"reparent_node":
+			return str(action.get("node_path", action.get("path", ""))) + " -> " + str(action.get("new_parent_path", action.get("parent_path", "")))
 		_:
 			return ""
 
@@ -2232,7 +3024,7 @@ func _actions_touch_scene(actions: Array) -> bool:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
 		var action_type := str((item as Dictionary).get("type", "")).strip_edges()
-		if action_type in ["add_node", "set_property", "attach_script", "connect_signal"]:
+		if action_type in ["add_node", "set_property", "attach_script", "connect_signal", "remove_node", "rename_node", "duplicate_node", "reparent_node", "move_node", "set_owner", "set_unique_name", "add_group", "remove_group", "set_metadata", "remove_metadata"]:
 			return true
 	return false
 
@@ -2424,6 +3216,10 @@ func _history_path() -> String:
 
 func _run_reports_path() -> String:
 	return _file_bridge_root().path_join("run_reports.jsonl")
+
+
+func _raw_audit_path() -> String:
+	return _file_bridge_root().path_join("raw_audit.jsonl")
 
 
 func _pending_actions_path() -> String:
@@ -2916,6 +3712,11 @@ func _encode_value(value):
 			}
 		TYPE_PACKED_STRING_ARRAY:
 			return Array(value)
+		TYPE_PACKED_FLOAT32_ARRAY:
+			return {
+				"type": "PackedFloat32Array",
+				"values": Array(value)
+			}
 		TYPE_PACKED_VECTOR2_ARRAY:
 			var vector2_array: Array = []
 			for item in value:
@@ -2936,6 +3737,8 @@ func _decode_value(value):
 	if value_dict.has("resource_path") and str(value_dict.get("type", "")) != "Resource":
 		var resource_path := _normalize_action_path(str(value_dict.get("resource_path", "")))
 		return load(resource_path) if not resource_path.is_empty() else null
+	if value_dict.has("resource_type"):
+		return _instantiate_resource(str(value_dict.get("resource_type", "")), value_dict.get("properties", {}))
 
 	var value_type := str(value_dict.get("type", "")).strip_edges()
 	match value_type:
@@ -2956,6 +3759,11 @@ func _decode_value(value):
 			for item in value_dict.get("values", []):
 				strings.append(str(item))
 			return strings
+		"PackedFloat32Array":
+			var floats := PackedFloat32Array()
+			for item in value_dict.get("values", []):
+				floats.append(float(item))
+			return floats
 		"PackedVector2Array":
 			var points: Array = []
 			for point in value_dict.get("points", []):
@@ -2966,6 +3774,27 @@ func _decode_value(value):
 			return load(resource_path) if not resource_path.is_empty() else null
 		_:
 			return value
+
+
+func _instantiate_resource(resource_type: String, raw_properties) -> Resource:
+	var type_name := resource_type.strip_edges()
+	if type_name.is_empty() or not ClassDB.class_exists(type_name) or not ClassDB.can_instantiate(type_name):
+		return null
+
+	var object = ClassDB.instantiate(type_name)
+	if not object is Resource:
+		if object != null and object.has_method("free"):
+			object.free()
+		return null
+
+	var resource := object as Resource
+	if typeof(raw_properties) == TYPE_DICTIONARY:
+		var properties := raw_properties as Dictionary
+		for property_name in properties.keys():
+			var name := str(property_name)
+			if _has_property(resource, name):
+				resource.set(name, _decode_value(properties[property_name]))
+	return resource
 
 
 func _record_history(entry: Dictionary) -> void:
@@ -2987,6 +3816,46 @@ func _record_history(entry: Dictionary) -> void:
 	file.seek_end()
 	file.store_string(JSON.stringify(entry))
 	file.store_string("\n")
+
+
+func _record_raw_audit(entry: Dictionary) -> void:
+	var audit_entry := entry.duplicate(true)
+	audit_entry["raw_mode_enabled"] = _raw_api_enabled()
+	raw_audit_entries.append(audit_entry)
+	while raw_audit_entries.size() > RAW_AUDIT_LIMIT:
+		raw_audit_entries.pop_front()
+
+	var path := _raw_audit_path()
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		push_warning("Godot Codex Bridge could not create raw audit directory: " + error_string(dir_error))
+		return
+
+	var file := FileAccess.open(path, FileAccess.READ_WRITE) if FileAccess.file_exists(path) else FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_warning("Godot Codex Bridge could not write raw audit: " + error_string(FileAccess.get_open_error()))
+		return
+
+	file.seek_end()
+	file.store_string(JSON.stringify(audit_entry))
+	file.store_string("\n")
+
+
+func _load_raw_audit() -> void:
+	raw_audit_entries.clear()
+	var path := _raw_audit_path()
+	if not FileAccess.file_exists(path):
+		return
+	var text := FileAccess.get_file_as_string(path)
+	for raw_line in text.split("\n"):
+		var line := str(raw_line).strip_edges()
+		if line.is_empty():
+			continue
+		var parsed = JSON.parse_string(line)
+		if typeof(parsed) == TYPE_DICTIONARY:
+			raw_audit_entries.append(parsed as Dictionary)
+	while raw_audit_entries.size() > RAW_AUDIT_LIMIT:
+		raw_audit_entries.pop_front()
 
 
 func _record_run_report(report: Dictionary) -> void:

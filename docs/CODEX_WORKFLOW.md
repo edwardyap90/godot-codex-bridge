@@ -40,6 +40,7 @@ editor actions should be sent through the bridge:
 
 ```bash
 tools/godot_bridge_send.sh ping
+tools/godot_bridge_send.sh capabilities
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"open_scene","path":"res://scenes/main.tscn"}'
 tools/godot_bridge_send.sh --json '{"command":"apply_actions","actions":[{"type":"add_node","parent_path":".","node_type":"Camera2D","name":"Camera2D"}]}'
@@ -48,6 +49,38 @@ tools/godot_bridge_send.sh --json '{"command":"apply_actions","actions":[{"type"
 Use direct filesystem writes only for bootstrap/install work before the bridge
 exists. Once `ping` works, keeping changes inside the bridge path makes them
 project-scoped, visible in the editor, and reversible through snapshots.
+
+## Control Plane v2
+
+Use these helper commands when starting a task:
+
+```bash
+tools/godot_bridge_send.sh doctor --deep
+tools/godot_bridge_send.sh capabilities
+tools/godot_bridge_send.sh timeline
+tools/godot_bridge_send.sh raw-status
+```
+
+Codex should prefer safe commands and queued action batches. Each response now
+includes `schema_version`, `ui_feedback`, `warnings`, and `changed_paths` so
+the agent can explain what happened and the Godot dock can show the same state.
+
+## Controlled Raw API
+
+Raw mode is for trusted local workflows that need an allowlisted Editor API
+escape hatch. It is disabled by default.
+
+Enable it only when needed:
+
+```bash
+CODEX_GODOT_RAW_API_ENABLED=1 godot --editor --path .
+```
+
+or set `codex_bridge/raw_api_enabled=true` in project settings.
+
+Raw commands are audited in `.godot/godot_codex_bridge/raw_audit.jsonl` and do
+not execute arbitrary scripts. If a safe command exists, use the safe command
+instead of raw mode.
 
 ## Demo Projects
 

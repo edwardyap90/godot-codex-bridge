@@ -10,15 +10,20 @@
 
 - 默认使用项目内文件队列，不占端口。
 - 可选开启 `127.0.0.1` TCP 桥。
+- 新增 Control Plane v2：响应包含 `schema_version`、`ui_feedback`、`warnings`、`changed_paths`。
 - 通过 `project_root` 做项目隔离，避免多项目串用。
-- 右侧 Dock 显示项目、队列路径、最近命令、可视反馈、快照和运行报告。
+- 右侧 Dock Console 显示项目、队列路径、最近命令、可视反馈、变更路径、快照、运行报告和 Raw 模式状态。
 - 命令历史写入 `.godot/godot_codex_bridge/history.jsonl`。
+- 支持 `get_command_timeline` 查看命令时间线。
 - 支持先预览、再加入待确认队列、最后应用。
 - 修改文件或当前场景前自动创建快照。
 - 支持恢复快照。
 - 应用场景动作后会尽量自动选中最后一个成功修改的节点。
 - 支持触发 Godot headless 检查并记录错误/警告。
 - 可操作场景树、选中节点、Inspector、Project Settings、Input Map、资源和 `AnimationPlayer`。
+- 扩展安全场景动作：重命名、复制、删除、reparent、排序、owner、分组、唯一名和 metadata。
+- 支持创建、保存、修改 `.tres` / `.res` 资源。
+- 新增受控 Raw API 模式，默认关闭，只允许白名单调用，不执行任意脚本。
 
 ## 安装
 
@@ -87,13 +92,18 @@ tools/godot_bridge_send.sh play_main_scene
 ```bash
 tools/godot_bridge_send.sh ping
 tools/godot_bridge_send.sh status
-tools/godot_bridge_send.sh doctor
+tools/godot_bridge_send.sh doctor --deep
+tools/godot_bridge_send.sh capabilities
+tools/godot_bridge_send.sh timeline
+tools/godot_bridge_send.sh raw-status
 tools/godot_bridge_send.sh get_project_identity
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
 ```
 
-`status` 会显示当前项目、队列路径、待处理请求数量和桥接状态响应。`doctor` 会检查插件文件、插件启用状态、Python、Godot 可执行文件、队列目录和 bridge ping。
+`status` 会显示当前项目、队列路径、待处理请求数量和桥接状态响应。`doctor --deep` 会检查插件文件、插件启用状态、Python、Godot 可执行文件、队列目录、bridge ping、v2 能力和 Raw 模式状态。
+
+Raw API 默认关闭。可信本地流程需要时可以设置 `codex_bridge/raw_api_enabled=true` 或 `CODEX_GODOT_RAW_API_ENABLED=1`。Raw 调用会写入 `.godot/godot_codex_bridge/raw_audit.jsonl`。
 
 ## 开发验证
 

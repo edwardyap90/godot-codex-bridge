@@ -7,15 +7,21 @@ usage() {
   cat <<'USAGE' >&2
 Usage:
   tools/godot_bridge_send.sh ping
+  tools/godot_bridge_send.sh capabilities
+  tools/godot_bridge_send.sh timeline
+  tools/godot_bridge_send.sh snapshots
+  tools/godot_bridge_send.sh raw-status
   tools/godot_bridge_send.sh get_editor_context
   tools/godot_bridge_send.sh status
-  tools/godot_bridge_send.sh doctor
+  tools/godot_bridge_send.sh doctor [--deep]
   tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
 
 Environment:
   CODEX_GODOT_BRIDGE_TIMEOUT       Response timeout in seconds. Default: 10.
   CODEX_GODOT_FILE_BRIDGE_ROOT     Queue root. Default: .godot/godot_codex_bridge.
   CODEX_GODOT_REQUEST_ID           Optional request id override.
+  CODEX_GODOT_TRANSACTION_ID       Optional transaction id for grouped requests.
+  CODEX_GODOT_MODE                 Request mode. Default: safe.
   CODEX_GODOT_BIN                  Optional Godot executable path for doctor.
 USAGE
 }
@@ -133,6 +139,11 @@ if not isinstance(payload, dict):
 payload["request_id"] = os.environ["REQUEST_ID"]
 payload.setdefault("project_root", os.environ["PROJECT_ROOT"])
 payload.setdefault("client_cwd", os.environ["CLIENT_CWD"])
+payload.setdefault("schema_version", 2)
+payload.setdefault("mode", os.environ.get("CODEX_GODOT_MODE", "safe"))
+transaction_id = os.environ.get("CODEX_GODOT_TRANSACTION_ID", "").strip()
+if transaction_id:
+    payload.setdefault("transaction_id", transaction_id)
 print(json.dumps(payload, ensure_ascii=False))
 PY
 }
@@ -172,6 +183,7 @@ run_doctor() {
   local project_root="$1"
   local client_cwd="$2"
   local bridge_root="$3"
+  local deep="${4:-false}"
   local failures=0
 
   echo "Godot Codex Bridge doctor"
@@ -226,6 +238,15 @@ run_doctor() {
   fi
   timeout_sec="$previous_timeout"
 
+  if [[ "$deep" == "true" ]]; then
+    echo
+    echo "Capabilities v2:"
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "list_capabilities_v2" || true
+    echo
+    echo "Raw mode:"
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_raw_mode_status" || true
+  fi
+
   if (( failures > 0 )); then
     return 1
   fi
@@ -253,8 +274,28 @@ case "${1:-}" in
     echo "Bridge status response:"
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_bridge_status"
     ;;
+  capabilities)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "list_capabilities_v2"
+    ;;
+  timeline)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_command_timeline"
+    ;;
+  snapshots)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_snapshots"
+    ;;
+  raw-status)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_raw_mode_status"
+    ;;
   doctor)
-    run_doctor "$project_root" "$client_cwd" "$bridge_root"
+    if [[ $# -gt 2 ]]; then
+      usage
+      exit 2
+    fi
+    if [[ $# -eq 2 && "${2:-}" != "--deep" ]]; then
+      usage
+      exit 2
+    fi
+    run_doctor "$project_root" "$client_cwd" "$bridge_root" "$([[ "${2:-}" == "--deep" ]] && echo true || echo false)"
     ;;
   --json)
     if [[ $# -ne 2 ]]; then

@@ -129,6 +129,17 @@ func _init() -> void:
 	var capabilities_result: Dictionary = bridge.handle_request({
 		"command": "list_editor_capabilities"
 	})
+	var capabilities_v2_result: Dictionary = bridge.handle_request({
+		"command": "list_capabilities_v2"
+	})
+	var raw_status_result: Dictionary = bridge.handle_request({
+		"command": "get_raw_mode_status"
+	})
+	var raw_disabled_result: Dictionary = bridge.handle_request({
+		"command": "raw_classdb_query",
+		"query": "class_exists",
+		"class": "Node2D"
+	})
 	var inspector_result: Dictionary = bridge.handle_request({
 		"command": "get_inspector_properties",
 		"node_path": ".",
@@ -275,6 +286,48 @@ func _init() -> void:
 		"command": "apply_queued_actions",
 		"queue_id": queue_scene_id
 	})
+	var queue_node_ops_result: Dictionary = bridge.handle_request({
+		"command": "queue_actions",
+		"summary": "node operation smoke",
+		"actions": [
+			{
+				"type": "rename_node",
+				"node_path": "QueuedChild",
+				"name": "RenamedQueuedChild"
+			},
+			{
+				"type": "set_unique_name",
+				"node_path": "RenamedQueuedChild",
+				"enabled": true
+			},
+			{
+				"type": "add_group",
+				"node_path": "RenamedQueuedChild",
+				"group": "codex_smoke_group"
+			},
+			{
+				"type": "set_metadata",
+				"node_path": "RenamedQueuedChild",
+				"key": "codex_smoke",
+				"value": "ok"
+			},
+			{
+				"type": "duplicate_node",
+				"node_path": "RenamedQueuedChild",
+				"name": "DuplicatedQueuedChild"
+			},
+			{
+				"type": "remove_node",
+				"node_path": "DuplicatedQueuedChild"
+			}
+		]
+	})
+	var queue_node_ops_data := queue_node_ops_result.get("data", {}) as Dictionary
+	var queue_node_ops_queued := queue_node_ops_data.get("queued", {}) as Dictionary
+	var apply_node_ops_result: Dictionary = bridge.handle_request({
+		"command": "apply_queued_actions",
+		"queue_id": str(queue_node_ops_queued.get("queue_id", ""))
+	})
 	var discard_queue_result: Dictionary = bridge.handle_request({
 		"command": "queue_actions",
 		"summary": "discard smoke",
@@ -351,6 +404,68 @@ func _init() -> void:
 		"command": "get_node_details",
 		"node_path": "BridgeChild"
 	})
+	var batch_inspector_result: Dictionary = bridge.handle_request({
+		"command": "set_inspector_properties",
+		"node_path": "BridgeChild",
+		"properties": {
+			"position": {
+				"type": "Vector2",
+				"x": 22,
+				"y": 44
+			},
+			"visible": true
+		}
+	})
+	var resource_path := "res://tmp_bridge_queue/smoke_resource.tres"
+	_remove_file(resource_path)
+	var create_resource_result: Dictionary = bridge.handle_request({
+		"command": "create_resource",
+		"path": resource_path,
+		"resource_type": "Gradient",
+		"replace": true
+	})
+	var set_resource_result: Dictionary = bridge.handle_request({
+		"command": "set_resource_property",
+		"path": resource_path,
+		"property": "offsets",
+		"value": {
+			"type": "PackedFloat32Array",
+			"values": [0.0, 1.0]
+		}
+	})
+	var save_resource_result: Dictionary = bridge.handle_request({
+		"command": "save_resource",
+		"path": resource_path
+	})
+	ProjectSettings.set_setting("codex_bridge/raw_api_enabled", true)
+	var raw_classdb_result: Dictionary = bridge.handle_request({
+		"command": "raw_classdb_query",
+		"query": "class_exists",
+		"class": "Node2D",
+		"mode": "raw"
+	})
+	var raw_object_result: Dictionary = bridge.handle_request({
+		"command": "raw_object_call",
+		"node_path": "BridgeChild",
+		"method": "set",
+		"mode": "raw",
+		"args": [
+			"position",
+			{
+				"type": "Vector2",
+				"x": 33,
+				"y": 66
+			}
+		]
+	})
+	var raw_project_result: Dictionary = bridge.handle_request({
+		"command": "raw_project_call",
+		"target": "ProjectSettings",
+		"method": "has_setting",
+		"mode": "raw",
+		"args": ["application/config/name"]
+	})
+	ProjectSettings.set_setting("codex_bridge/raw_api_enabled", false)
 	var play_status_result: Dictionary = bridge.handle_request({
 		"command": "get_play_status"
 	})
@@ -363,10 +478,15 @@ func _init() -> void:
 	var history_result: Dictionary = bridge.handle_request({
 		"command": "get_command_history"
 	})
+	var timeline_result: Dictionary = bridge.handle_request({
+		"command": "get_command_timeline"
+	})
 
 	var child := scene_root.get_node_or_null("BridgeChild") as Node2D
 	var dry_run_child := scene_root.get_node_or_null("DryRunChild")
 	var queued_child := scene_root.get_node_or_null("QueuedChild") as Node2D
+	var renamed_queued_child := scene_root.get_node_or_null("RenamedQueuedChild") as Node2D
+	var duplicated_queued_child := scene_root.get_node_or_null("DuplicatedQueuedChild")
 	var discarded_child := scene_root.get_node_or_null("DiscardedChild")
 	var action_data := action_result.get("data", {}) as Dictionary
 	var executor_result := action_data.get("action_result", {}) as Dictionary
@@ -376,6 +496,10 @@ func _init() -> void:
 	var dry_run_preview := dry_run_data.get("preview", {}) as Dictionary
 	var capabilities_data := capabilities_result.get("data", {}) as Dictionary
 	var capabilities := capabilities_data.get("capabilities", {}) as Dictionary
+	var capabilities_v2_data := capabilities_v2_result.get("data", {}) as Dictionary
+	var capabilities_v2 := capabilities_v2_data.get("capabilities", {}) as Dictionary
+	var raw_status_data := raw_status_result.get("data", {}) as Dictionary
+	var raw_status := raw_status_data.get("raw_mode", {}) as Dictionary
 	var inspector_data := inspector_result.get("data", {}) as Dictionary
 	var inspector_properties := inspector_data.get("properties", []) as Array
 	var project_setting_data := project_setting_result.get("data", {}) as Dictionary
@@ -404,8 +528,11 @@ func _init() -> void:
 	var node_details := details_data.get("node", {}) as Dictionary
 	var history_data := history_result.get("data", {}) as Dictionary
 	var history_entries := history_data.get("history", []) as Array
+	var timeline_data := timeline_result.get("data", {}) as Dictionary
+	var timeline_entries := timeline_data.get("timeline", []) as Array
 
 	var passed: bool = bool(ping_result.get("ok", false))
+	passed = passed and int(ping_result.get("schema_version", 0)) == 2
 	passed = passed and bool(tree_result.get("ok", false))
 	passed = passed and bool(project_result.get("ok", false))
 	passed = passed and bool(identity_result.get("ok", false))
@@ -414,6 +541,12 @@ func _init() -> void:
 	passed = passed and bool(capabilities_result.get("ok", false))
 	passed = passed and (capabilities.get("inspector", []) as Array).has("get_inspector_properties")
 	passed = passed and (capabilities.get("animation", []) as Array).has("add_animation_value_key")
+	passed = passed and bool(capabilities_v2_result.get("ok", false))
+	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
+	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
+	passed = passed and bool(raw_status_result.get("ok", false))
+	passed = passed and not bool(raw_status.get("enabled", true))
+	passed = passed and not bool(raw_disabled_result.get("ok", true))
 	passed = passed and bool(inspector_result.get("ok", false))
 	passed = passed and inspector_properties.size() > 0
 	passed = passed and bool(inspector_set_result.get("ok", false))
@@ -462,6 +595,8 @@ func _init() -> void:
 	passed = passed and bool(pending_result.get("ok", false))
 	passed = passed and pending_items.size() > 0
 	passed = passed and bool(apply_queue_scene_result.get("ok", false))
+	passed = passed and bool(queue_node_ops_result.get("ok", false))
+	passed = passed and bool(apply_node_ops_result.get("ok", false))
 	passed = passed and bool(discard_queue_result.get("ok", false))
 	passed = passed and bool(discard_result.get("ok", false))
 	passed = passed and bool(queue_file_result.get("ok", false))
@@ -477,6 +612,16 @@ func _init() -> void:
 	passed = passed and bool(select_result.get("ok", false))
 	passed = passed and bool(selection_result.get("ok", false))
 	passed = passed and bool(details_result.get("ok", false))
+	passed = passed and bool(batch_inspector_result.get("ok", false))
+	passed = passed and child.position == Vector2(33, 66)
+	passed = passed and bool(create_resource_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(resource_path))
+	passed = passed and bool(set_resource_result.get("ok", false))
+	passed = passed and bool(save_resource_result.get("ok", false))
+	passed = passed and bool(raw_classdb_result.get("ok", false))
+	passed = passed and bool((raw_classdb_result.get("data", {}) as Dictionary).get("exists", false))
+	passed = passed and bool(raw_object_result.get("ok", false))
+	passed = passed and bool(raw_project_result.get("ok", false))
 	passed = passed and bool(play_status_result.get("ok", false))
 	passed = passed and bool(play_main_result.get("ok", false))
 	passed = passed and bool(stop_result.get("ok", false))
@@ -484,10 +629,9 @@ func _init() -> void:
 	passed = passed and bool(dry_run_preview.get("dry_run", false))
 	passed = passed and int(executor_result.get("applied", 0)) == 1
 	passed = passed and child != null
-	passed = passed and queued_child != null
 	passed = passed and discarded_child == null
 	passed = passed and dry_run_child == null
-	passed = passed and child.position == Vector2(12, 34)
+	passed = passed and child.position == Vector2(33, 66)
 	passed = passed and selection_nodes.size() == 1
 	passed = passed and str((selection_nodes[0] as Dictionary).get("path", "")) == "BridgeChild"
 	passed = passed and str(node_details.get("class", "")) == "Node2D"
@@ -495,13 +639,23 @@ func _init() -> void:
 	passed = passed and fake_editor.last_played_scene == ProjectSettings.get_setting("application/run/main_scene", "")
 	passed = passed and not fake_editor.playing
 	passed = passed and history_entries.size() > 0
+	passed = passed and bool(timeline_result.get("ok", false))
+	passed = passed and timeline_entries.size() > 0
 	passed = passed and fake_editor.dirty_count >= 1
+	passed = passed and queued_child == null
+	passed = passed and renamed_queued_child != null
+	passed = passed and renamed_queued_child.unique_name_in_owner
+	passed = passed and renamed_queued_child.is_in_group("codex_smoke_group")
+	passed = passed and str(renamed_queued_child.get_meta("codex_smoke", "")) == "ok"
+	passed = passed and duplicated_queued_child == null
 
 	bridge.free()
 	scene_root.free()
 	_remove_file(file_path)
+	_remove_file(resource_path)
 	_remove_dir("res://tmp_bridge_queue")
 	ProjectSettings.clear("codex_bridge/smoke_temp")
+	ProjectSettings.clear("codex_bridge/raw_api_enabled")
 
 	if passed:
 		print("control_bridge_smoke: OK")
