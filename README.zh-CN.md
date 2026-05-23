@@ -12,7 +12,8 @@
 - 可选开启 `127.0.0.1` TCP 桥。
 - 新增 Control Plane v2：响应包含 `schema_version`、`ui_feedback`、`warnings`、`changed_paths`。
 - 通过 `project_root` 做项目隔离，避免多项目串用。
-- 右侧 Dock Console 显示项目、队列路径、最近命令、可视反馈、变更路径、快照、运行报告和 Raw 模式状态。
+- 右侧 Dock Console 有 Overview、Pending、Snapshots、Run、Raw Mode 分区。
+- 可以直接在 Godot Dock 里应用/丢弃待执行队列，也可以恢复快照。
 - 命令历史写入 `.godot/godot_codex_bridge/history.jsonl`。
 - 支持 `get_command_timeline` 查看命令时间线。
 - 支持先预览、再加入待确认队列、最后应用。
@@ -21,8 +22,9 @@
 - 应用场景动作后会尽量自动选中最后一个成功修改的节点。
 - 支持触发 Godot headless 检查并记录错误/警告。
 - 可操作场景树、选中节点、Inspector、Project Settings、Input Map、资源和 `AnimationPlayer`。
+- 新增安全项目命令：autoload、layer names、常用项目设置和命令 schema。
 - 扩展安全场景动作：重命名、复制、删除、reparent、排序、owner、分组、唯一名和 metadata。
-- 支持创建、保存、修改 `.tres` / `.res` 资源。
+- 支持创建、保存、修改 `.tres` / `.res` 资源，并提供 material/theme helper。
 - 新增受控 Raw API 模式，默认关闭，只允许白名单调用，不执行任意脚本。
 
 ## 安装
@@ -96,12 +98,25 @@ tools/godot_bridge_send.sh doctor --deep
 tools/godot_bridge_send.sh capabilities
 tools/godot_bridge_send.sh timeline
 tools/godot_bridge_send.sh raw-status
+tools/godot_bridge_send.sh schema
+tools/godot_bridge_send.sh queue-summary
+tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
 tools/godot_bridge_send.sh get_project_identity
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
 ```
 
-`status` 会显示当前项目、队列路径、待处理请求数量和桥接状态响应。`doctor --deep` 会检查插件文件、插件启用状态、Python、Godot 可执行文件、队列目录、bridge ping、v2 能力和 Raw 模式状态。
+`status` 会显示当前项目、队列路径、待处理请求数量和桥接状态响应。`doctor --deep` 会检查插件文件、插件启用状态、Python、Godot 可执行文件、队列目录、bridge ping、v2 能力、命令 schema 和 Raw 模式状态。`doctor --project` 会重点检查当前项目身份、队列和 helper 是否属于当前项目，适合多项目同时打开时使用。
+
+常用 v0.5 命令：
+
+```bash
+tools/godot_bridge_send.sh schema
+tools/godot_bridge_send.sh queue-summary
+tools/godot_bridge_send.sh --json '{"command":"get_autoloads"}'
+tools/godot_bridge_send.sh --json '{"command":"get_layer_names","family":"2d_physics"}'
+tools/godot_bridge_send.sh --json '{"command":"get_common_project_settings"}'
+```
 
 Raw API 默认关闭。可信本地流程需要时可以设置 `codex_bridge/raw_api_enabled=true` 或 `CODEX_GODOT_RAW_API_ENABLED=1`。Raw 调用会写入 `.godot/godot_codex_bridge/raw_audit.jsonl`。
 
@@ -116,4 +131,7 @@ GitHub Actions 会在推送到 `main`、Pull Request 和手动触发时自动运
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/control_bridge_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/file_bridge_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/status_dock_smoke.gd
+bash -n tools/godot_bridge_send.sh tools/godot_bridge_bootstrap_project.sh tools/godot_bridge_guard.sh
+python3 -m json.tool docs/schema/commands.schema.json >/tmp/godot_bridge_commands_schema.json
+tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
 ```

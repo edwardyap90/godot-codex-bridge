@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/edwardyap90/godot-codex-bridge/docs/schema/commands.schema.json",
+  "title": "Godot Codex Bridge Command Request",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["command"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "client_cwd": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["safe", "raw"]
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "transaction_id": {
+      "type": "string"
+    },
+    "command": {
+      "type": "string",
+      "enum": [
+        "ping",
+        "get_project_identity",
+        "get_bridge_status",
+        "list_editor_capabilities",
+        "list_capabilities_v2",
+        "get_command_schema",
+        "get_command_timeline",
+        "get_queue_summary",
+        "get_pending_actions",
+        "queue_actions",
+        "apply_queued_actions",
+        "discard_queued_actions",
+        "get_snapshots",
+        "restore_snapshot",
+        "get_project_info",
+        "get_open_scene",
+        "get_editor_context",
+        "get_scene_tree",
+        "get_selection",
+        "get_node_details",
+        "select_node",
+        "save_scene",
+        "play_main_scene",
+        "play_current_scene",
+        "play_custom_scene",
+        "stop_playing_scene",
+        "get_inspector_properties",
+        "set_inspector_property",
+        "set_inspector_properties",
+        "get_project_settings",
+        "get_project_setting",
+        "set_project_setting",
+        "get_common_project_settings",
+        "set_common_project_settings",
+        "get_autoloads",
+        "add_autoload",
+        "remove_autoload",
+        "get_layer_names",
+        "set_layer_name",
+        "get_input_actions",
+        "add_input_action",
+        "remove_input_action",
+        "get_project_files",
+        "get_resource_files",
+        "get_resource_info",
+        "get_resource_import_info",
+        "create_resource",
+        "set_resource_property",
+        "save_resource",
+        "create_material",
+        "create_theme",
+        "scan_resource_filesystem",
+        "reimport_resources",
+        "get_animation_players",
+        "get_animation_player_info",
+        "create_animation",
+        "set_animation_properties",
+        "add_animation_value_key",
+        "run_check_only",
+        "run_project_headless",
+        "get_last_run_report",
+        "get_raw_mode_status",
+        "raw_editor_call",
+        "raw_object_call",
+        "raw_classdb_query",
+        "raw_project_call",
+        "preview_actions",
+        "apply_actions",
+        "execute_editor_command"
+      ]
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "value": {
+      "$ref": "#/$defs/encodedValue"
+    },
+    "properties": {
+      "oneOf": [
+        {
+          "type": "object"
+        },
+        {
+          "type": "array"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "action": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "write_file",
+            "append_file",
+            "make_dir",
+            "create_scene",
+            "open_scene",
+            "refresh_filesystem",
+            "add_node",
+            "set_property",
+            "attach_script",
+            "connect_signal",
+            "remove_node",
+            "rename_node",
+            "duplicate_node",
+            "reparent_node",
+            "move_node",
+            "set_owner",
+            "set_unique_name",
+            "add_group",
+            "remove_group",
+            "set_metadata",
+            "remove_metadata"
+          ]
+        }
+      }
+    },
+    "encodedValue": {
+      "oneOf": [
+        {
+          "type": ["null", "boolean", "number", "string"]
+        },
+        {
+          "type": "array"
+        },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "Vector2",
+                "Vector2i",
+                "Vector3",
+                "Color",
+                "NodePath",
+                "StringName",
+                "PackedStringArray",
+                "PackedFloat32Array",
+                "PackedVector2Array",
+                "Resource"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -10,10 +10,13 @@ Usage:
   tools/godot_bridge_send.sh capabilities
   tools/godot_bridge_send.sh timeline
   tools/godot_bridge_send.sh snapshots
+  tools/godot_bridge_send.sh queue-summary
+  tools/godot_bridge_send.sh schema
+  tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
   tools/godot_bridge_send.sh raw-status
   tools/godot_bridge_send.sh get_editor_context
   tools/godot_bridge_send.sh status
-  tools/godot_bridge_send.sh doctor [--deep]
+  tools/godot_bridge_send.sh doctor [--deep|--project]
   tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
 
 Environment:
@@ -24,6 +27,12 @@ Environment:
   CODEX_GODOT_MODE                 Request mode. Default: safe.
   CODEX_GODOT_BIN                  Optional Godot executable path for doctor.
 USAGE
+}
+
+helper_path() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  printf '%s/%s\n' "$script_dir" "$(basename "${BASH_SOURCE[0]}")"
 }
 
 fail() {
@@ -148,6 +157,53 @@ print(json.dumps(payload, ensure_ascii=False))
 PY
 }
 
+validate_json_request() {
+  local project_root="$1"
+  local payload_value="$2"
+
+  PROJECT_ROOT="$project_root" \
+  PAYLOAD_VALUE="$payload_value" \
+  python3 - <<'PY'
+import json
+import os
+import sys
+
+project_root = os.path.normpath(os.environ["PROJECT_ROOT"])
+payload_value = os.environ["PAYLOAD_VALUE"]
+
+try:
+    payload = json.loads(payload_value)
+except json.JSONDecodeError as exc:
+    print(f"Invalid JSON: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+
+if not isinstance(payload, dict):
+    print("Request must be a JSON object.", file=sys.stderr)
+    raise SystemExit(2)
+
+command = str(payload.get("command") or payload.get("type") or "").strip()
+if not command:
+    print("Request must include a non-empty command.", file=sys.stderr)
+    raise SystemExit(2)
+
+schema_version = payload.get("schema_version", 2)
+if not isinstance(schema_version, int):
+    print("schema_version must be an integer when provided.", file=sys.stderr)
+    raise SystemExit(2)
+
+requested_root = str(payload.get("project_root", "")).strip()
+if requested_root:
+    normalized = os.path.normpath(requested_root)
+    if normalized != project_root:
+        print(f"Project mismatch: request targets {normalized}, current project is {project_root}", file=sys.stderr)
+        raise SystemExit(2)
+
+print("Request JSON: OK")
+print(f"Command: {command}")
+print(f"Project root: {project_root}")
+PY
+}
+
 send_request() {
   local project_root="$1"
   local client_cwd="$2"
@@ -184,11 +240,20 @@ run_doctor() {
   local client_cwd="$2"
   local bridge_root="$3"
   local deep="${4:-false}"
+  local project_check="${5:-false}"
   local failures=0
 
   echo "Godot Codex Bridge doctor"
   echo
   print_project_status "$project_root" "$client_cwd" "$bridge_root"
+  local current_helper
+  current_helper="$(helper_path)"
+  echo "Helper:      $current_helper"
+  if [[ "$current_helper" == "$project_root/"* ]]; then
+    echo "OK   helper is inside this project"
+  else
+    echo "WARN helper is outside this project; copied helpers are safer for multi-project work"
+  fi
   echo
 
   if [[ -f "$project_root/addons/godot_codex_bridge/plugin.cfg" && -f "$project_root/addons/godot_codex_bridge/plugin.gd" ]]; then
@@ -243,6 +308,21 @@ run_doctor() {
     echo "Capabilities v2:"
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "list_capabilities_v2" || true
     echo
+    echo "Command schema:"
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_command_schema" || true
+    echo
+    echo "Raw mode:"
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_raw_mode_status" || true
+  fi
+
+  if [[ "$project_check" == "true" ]]; then
+    echo
+    echo "Project identity:"
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_project_identity" || true
+    echo
+    echo "Queue summary:"
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_queue_summary" || true
+    echo
     echo "Raw mode:"
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_raw_mode_status" || true
   fi
@@ -283,6 +363,19 @@ case "${1:-}" in
   snapshots)
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_snapshots"
     ;;
+  queue-summary)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_queue_summary"
+    ;;
+  schema)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_command_schema"
+    ;;
+  validate-json)
+    if [[ $# -ne 2 ]]; then
+      usage
+      exit 2
+    fi
+    validate_json_request "$project_root" "$2"
+    ;;
   raw-status)
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_raw_mode_status"
     ;;
@@ -291,11 +384,11 @@ case "${1:-}" in
       usage
       exit 2
     fi
-    if [[ $# -eq 2 && "${2:-}" != "--deep" ]]; then
+    if [[ $# -eq 2 && "${2:-}" != "--deep" && "${2:-}" != "--project" ]]; then
       usage
       exit 2
     fi
-    run_doctor "$project_root" "$client_cwd" "$bridge_root" "$([[ "${2:-}" == "--deep" ]] && echo true || echo false)"
+    run_doctor "$project_root" "$client_cwd" "$bridge_root" "$([[ "${2:-}" == "--deep" ]] && echo true || echo false)" "$([[ "${2:-}" == "--project" ]] && echo true || echo false)"
     ;;
   --json)
     if [[ $# -ne 2 ]]; then

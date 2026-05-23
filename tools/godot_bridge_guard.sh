@@ -16,6 +16,12 @@ fail() {
   exit 1
 }
 
+helper_path() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  printf '%s/%s\n' "$script_dir" "$(basename "${BASH_SOURCE[0]}")"
+}
+
 find_project_root() {
   local start_dir="$1"
   local current="$start_dir"
@@ -65,6 +71,14 @@ fi
 
 echo "Bridge files: OK"
 echo "Plugin setting: OK"
+current_helper="$(helper_path)"
+echo "Project root: $project_root"
+echo "Helper path:  $current_helper"
+if [[ "$current_helper" == "$project_root/"* ]]; then
+  echo "Helper scope: OK, helper is inside this project"
+else
+  echo "Helper scope: WARN, helper is outside this project; copied helpers are safer for multi-project work"
+fi
 
 if CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/tools/godot_bridge_send.sh" ping >/tmp/godot_codex_bridge_guard_ping.$$ 2>/tmp/godot_codex_bridge_guard_ping_err.$$; then
   cat /tmp/godot_codex_bridge_guard_ping.$$
@@ -75,6 +89,9 @@ if CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/
   echo
   echo "Raw mode status:"
   CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/tools/godot_bridge_send.sh" raw-status || true
+  echo
+  echo "Queue summary:"
+  CODEX_GODOT_BRIDGE_TIMEOUT="${CODEX_GODOT_BRIDGE_TIMEOUT:-3}" "$project_root/tools/godot_bridge_send.sh" queue-summary || true
   echo
   echo "Bridge guard: OK"
   exit 0

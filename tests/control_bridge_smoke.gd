@@ -132,6 +132,9 @@ func _init() -> void:
 	var capabilities_v2_result: Dictionary = bridge.handle_request({
 		"command": "list_capabilities_v2"
 	})
+	var command_schema_result: Dictionary = bridge.handle_request({
+		"command": "get_command_schema"
+	})
 	var raw_status_result: Dictionary = bridge.handle_request({
 		"command": "get_raw_mode_status"
 	})
@@ -169,6 +172,49 @@ func _init() -> void:
 		"command": "get_project_settings",
 		"prefix": "codex_bridge/",
 		"max_count": 20
+	})
+	var common_project_settings_result: Dictionary = bridge.handle_request({
+		"command": "get_common_project_settings"
+	})
+	var common_project_settings_set_result: Dictionary = bridge.handle_request({
+		"command": "set_common_project_settings",
+		"save": false,
+		"settings": {
+			"main_scene": "res://tests/fixtures/fixture_scene.tscn",
+			"window_width": 960,
+			"window_height": 540,
+			"physics_ticks_per_second": 60
+		}
+	})
+	var autoload_path := "res://tests/fixtures/fixture_scene.tscn"
+	var autoloads_before_result: Dictionary = bridge.handle_request({
+		"command": "get_autoloads"
+	})
+	var add_autoload_result: Dictionary = bridge.handle_request({
+		"command": "add_autoload",
+		"name": "CodexSmokeAutoload",
+		"path": autoload_path,
+		"save": false
+	})
+	var autoloads_after_add_result: Dictionary = bridge.handle_request({
+		"command": "get_autoloads"
+	})
+	var remove_autoload_result: Dictionary = bridge.handle_request({
+		"command": "remove_autoload",
+		"name": "CodexSmokeAutoload",
+		"save": false
+	})
+	var layer_names_result: Dictionary = bridge.handle_request({
+		"command": "get_layer_names",
+		"family": "2d_physics",
+		"max_count": 3
+	})
+	var set_layer_name_result: Dictionary = bridge.handle_request({
+		"command": "set_layer_name",
+		"family": "2d_physics",
+		"layer": 3,
+		"name": "codex_smoke_layer",
+		"save": false
 	})
 	var input_add_result: Dictionary = bridge.handle_request({
 		"command": "add_input_action",
@@ -281,6 +327,9 @@ func _init() -> void:
 	var queued_child_before_apply := scene_root.get_node_or_null("QueuedChild")
 	var pending_result: Dictionary = bridge.handle_request({
 		"command": "get_pending_actions"
+	})
+	var queue_summary_result: Dictionary = bridge.handle_request({
+		"command": "get_queue_summary"
 	})
 	var apply_queue_scene_result: Dictionary = bridge.handle_request({
 		"command": "apply_queued_actions",
@@ -437,6 +486,39 @@ func _init() -> void:
 		"command": "save_resource",
 		"path": resource_path
 	})
+	var material_path := "res://tmp_bridge_queue/smoke_material.tres"
+	_remove_file(material_path)
+	var create_material_result: Dictionary = bridge.handle_request({
+		"command": "create_material",
+		"path": material_path,
+		"material_type": "CanvasItemMaterial",
+		"replace": true,
+		"properties": {
+			"blend_mode": 1
+		}
+	})
+	var theme_path := "res://tmp_bridge_queue/smoke_theme.tres"
+	_remove_file(theme_path)
+	var create_theme_result: Dictionary = bridge.handle_request({
+		"command": "create_theme",
+		"path": theme_path,
+		"replace": true,
+		"colors": {
+			"Label/font_color": {
+				"type": "Color",
+				"r": 1.0,
+				"g": 0.5,
+				"b": 0.25,
+				"a": 1.0
+			}
+		},
+		"constants": {
+			"MarginContainer/margin_left": 8
+		},
+		"font_sizes": {
+			"Label/font_size": 18
+		}
+	})
 	ProjectSettings.set_setting("codex_bridge/raw_api_enabled", true)
 	var raw_classdb_result: Dictionary = bridge.handle_request({
 		"command": "raw_classdb_query",
@@ -498,11 +580,23 @@ func _init() -> void:
 	var capabilities := capabilities_data.get("capabilities", {}) as Dictionary
 	var capabilities_v2_data := capabilities_v2_result.get("data", {}) as Dictionary
 	var capabilities_v2 := capabilities_v2_data.get("capabilities", {}) as Dictionary
+	var command_schema_data := command_schema_result.get("data", {}) as Dictionary
+	var command_schema := command_schema_data.get("schema", {}) as Dictionary
+	var command_schema_entries := command_schema.get("commands", []) as Array
 	var raw_status_data := raw_status_result.get("data", {}) as Dictionary
 	var raw_status := raw_status_data.get("raw_mode", {}) as Dictionary
 	var inspector_data := inspector_result.get("data", {}) as Dictionary
 	var inspector_properties := inspector_data.get("properties", []) as Array
 	var project_setting_data := project_setting_result.get("data", {}) as Dictionary
+	var common_project_settings_data := common_project_settings_set_result.get("data", {}) as Dictionary
+	var common_project_setting_changes := common_project_settings_data.get("changes", []) as Array
+	var add_autoload_data := add_autoload_result.get("data", {}) as Dictionary
+	var added_autoload := add_autoload_data.get("after", {}) as Dictionary
+	var autoloads_after_add_data := autoloads_after_add_result.get("data", {}) as Dictionary
+	var autoloads_after_add := autoloads_after_add_data.get("autoloads", []) as Array
+	var layer_names_data := layer_names_result.get("data", {}) as Dictionary
+	var layer_families := layer_names_data.get("families", []) as Array
+	var set_layer_name_data := set_layer_name_result.get("data", {}) as Dictionary
 	var input_add_data := input_add_result.get("data", {}) as Dictionary
 	var input_action := input_add_data.get("action", {}) as Dictionary
 	var input_list_data := input_list_result.get("data", {}) as Dictionary
@@ -520,6 +614,7 @@ func _init() -> void:
 	var bridge_animation := animation_player.get_animation("bridge_smoke")
 	var pending_data := pending_result.get("data", {}) as Dictionary
 	var pending_items := pending_data.get("pending", []) as Array
+	var queue_summary_data := queue_summary_result.get("data", {}) as Dictionary
 	var snapshots_data := snapshots_result.get("data", {}) as Dictionary
 	var snapshot_items := snapshots_data.get("snapshots", []) as Array
 	var selection_data := selection_result.get("data", {}) as Dictionary
@@ -544,6 +639,9 @@ func _init() -> void:
 	passed = passed and bool(capabilities_v2_result.get("ok", false))
 	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
 	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
+	passed = passed and bool(command_schema_result.get("ok", false))
+	passed = passed and str(command_schema.get("bridge_version", "")) == "0.5.0"
+	passed = passed and command_schema_entries.size() > 20
 	passed = passed and bool(raw_status_result.get("ok", false))
 	passed = passed and not bool(raw_status.get("enabled", true))
 	passed = passed and not bool(raw_disabled_result.get("ok", true))
@@ -556,6 +654,22 @@ func _init() -> void:
 	passed = passed and bool(project_setting_set_result.get("ok", false))
 	passed = passed and bool(ProjectSettings.get_setting("codex_bridge/smoke_temp", false))
 	passed = passed and bool(project_settings_list_result.get("ok", false))
+	passed = passed and bool(common_project_settings_result.get("ok", false))
+	passed = passed and bool(common_project_settings_set_result.get("ok", false))
+	passed = passed and common_project_setting_changes.size() == 4
+	passed = passed and int(ProjectSettings.get_setting("display/window/size/viewport_width", 0)) == 960
+	passed = passed and bool(autoloads_before_result.get("ok", false))
+	passed = passed and bool(add_autoload_result.get("ok", false))
+	passed = passed and bool(added_autoload.get("exists", false))
+	passed = passed and str(added_autoload.get("path", "")) == autoload_path
+	passed = passed and bool(autoloads_after_add_result.get("ok", false))
+	passed = passed and _autoload_list_has(autoloads_after_add, "CodexSmokeAutoload")
+	passed = passed and bool(remove_autoload_result.get("ok", false))
+	passed = passed and not ProjectSettings.has_setting("autoload/CodexSmokeAutoload")
+	passed = passed and bool(layer_names_result.get("ok", false))
+	passed = passed and layer_families.size() == 1
+	passed = passed and bool(set_layer_name_result.get("ok", false))
+	passed = passed and str(set_layer_name_data.get("after", "")) == "codex_smoke_layer"
 	passed = passed and bool(input_add_result.get("ok", false))
 	passed = passed and bool(input_action.get("exists", false))
 	passed = passed and (input_action.get("events", []) as Array).size() == 1
@@ -594,6 +708,8 @@ func _init() -> void:
 	passed = passed and queued_child_before_apply == null
 	passed = passed and bool(pending_result.get("ok", false))
 	passed = passed and pending_items.size() > 0
+	passed = passed and bool(queue_summary_result.get("ok", false))
+	passed = passed and int(queue_summary_data.get("pending_count", 0)) > 0
 	passed = passed and bool(apply_queue_scene_result.get("ok", false))
 	passed = passed and bool(queue_node_ops_result.get("ok", false))
 	passed = passed and bool(apply_node_ops_result.get("ok", false))
@@ -618,6 +734,10 @@ func _init() -> void:
 	passed = passed and bool(FileAccess.file_exists(resource_path))
 	passed = passed and bool(set_resource_result.get("ok", false))
 	passed = passed and bool(save_resource_result.get("ok", false))
+	passed = passed and bool(create_material_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(material_path))
+	passed = passed and bool(create_theme_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(theme_path))
 	passed = passed and bool(raw_classdb_result.get("ok", false))
 	passed = passed and bool((raw_classdb_result.get("data", {}) as Dictionary).get("exists", false))
 	passed = passed and bool(raw_object_result.get("ok", false))
@@ -653,9 +773,14 @@ func _init() -> void:
 	scene_root.free()
 	_remove_file(file_path)
 	_remove_file(resource_path)
+	_remove_file(material_path)
+	_remove_file(theme_path)
 	_remove_dir("res://tmp_bridge_queue")
 	ProjectSettings.clear("codex_bridge/smoke_temp")
 	ProjectSettings.clear("codex_bridge/raw_api_enabled")
+	if ProjectSettings.has_setting("autoload/CodexSmokeAutoload"):
+		ProjectSettings.clear("autoload/CodexSmokeAutoload")
+	ProjectSettings.clear("layer_names/2d_physics/layer_3")
 
 	if passed:
 		print("control_bridge_smoke: OK")
@@ -672,3 +797,10 @@ func _remove_file(path: String) -> void:
 
 func _remove_dir(path: String) -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _autoload_list_has(items: Array, name: String) -> bool:
+	for item in items:
+		if typeof(item) == TYPE_DICTIONARY and str((item as Dictionary).get("name", "")) == name:
+			return true
+	return false

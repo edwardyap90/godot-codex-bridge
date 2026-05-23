@@ -38,7 +38,8 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 - Optional TCP transport on `127.0.0.1`.
 - Control Plane v2 responses with `schema_version`, `ui_feedback`, `warnings`, and `changed_paths`.
 - Project isolation through `project_root` validation.
-- Godot dock console showing the active project, queue paths, recent commands, visual feedback, changed paths, snapshots, run reports, and raw mode status.
+- Godot dock console with Overview, Pending Queue, Snapshots, Run Reports, and Raw Mode tabs.
+- Pending batches can be applied or discarded from the Godot dock; snapshots can be restored from the dock.
 - Command history in `.godot/godot_codex_bridge/history.jsonl`.
 - Command timeline through `get_command_timeline`.
 - Pending action queue: preview first, apply later.
@@ -47,8 +48,9 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 - Scene-changing action batches focus the last successfully changed node in the editor when possible.
 - Headless Godot checks with captured errors and warnings.
 - Editor commands for scene tree, selection, Inspector properties, Project Settings, Input Map, resources, and `AnimationPlayer` editing.
+- Safe project-surface commands for autoloads, layer names, common project settings, and command schema discovery.
 - Extended safe scene actions for node rename, duplicate, remove, reparent, ordering, owner, groups, unique names, and metadata.
-- Resource creation, saving, and property editing for `.tres` and `.res` assets.
+- Resource creation, saving, property editing, material helpers, and theme helpers for `.tres` and `.res` assets.
 - Controlled Raw API mode for allowlisted Godot editor calls. It is disabled by default and never executes arbitrary scripts.
 
 ## Installation
@@ -93,6 +95,9 @@ tools/godot_bridge_send.sh doctor --deep
 tools/godot_bridge_send.sh capabilities
 tools/godot_bridge_send.sh timeline
 tools/godot_bridge_send.sh raw-status
+tools/godot_bridge_send.sh schema
+tools/godot_bridge_send.sh queue-summary
+tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
 tools/godot_bridge_send.sh get_project_identity
 tools/godot_bridge_send.sh get_editor_context
 tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
@@ -130,7 +135,11 @@ When scene actions are applied, the bridge response includes `visual_feedback`. 
 - `capabilities`: prints `list_capabilities_v2`.
 - `timeline`: prints the command timeline.
 - `snapshots`: prints known snapshots.
+- `queue-summary`: prints pending queue counts, action counts, and target summaries.
+- `schema`: prints the machine-readable command schema exposed by the open editor.
+- `validate-json`: validates a command JSON object before sending it.
 - `raw-status`: prints whether controlled Raw API mode is enabled and where audit logs are written.
+- `doctor --project`: checks project identity, queue status, raw mode, and whether the helper is scoped to the current project.
 - `--json`: sends a raw command object for advanced workflows.
 
 The CLI auto-detects the nearest `project.godot` from the current directory. Set `CODEX_GODOT_BIN` if `doctor` should use a specific Godot executable.
@@ -169,14 +178,14 @@ tools/godot_bridge_send.sh play_main_scene
 
 ## Command Families
 
-- Project and bridge status: `ping`, `get_project_identity`, `get_bridge_status`, `list_editor_capabilities`, `list_capabilities_v2`, `get_command_timeline`
+- Project and bridge status: `ping`, `get_project_identity`, `get_bridge_status`, `list_editor_capabilities`, `list_capabilities_v2`, `get_command_schema`, `get_command_timeline`
 - Scene inspection: `get_open_scene`, `get_scene_tree`, `get_editor_context`, `get_selection`, `get_node_details`
 - Scene interaction: `select_node`, `save_scene`, `play_main_scene`, `play_current_scene`, `play_custom_scene`, `stop_playing_scene`
-- Safe changes: `preview_actions`, `queue_actions`, `apply_queued_actions`, `discard_queued_actions`, `get_snapshots`, `restore_snapshot`
+- Safe changes: `preview_actions`, `queue_actions`, `get_queue_summary`, `apply_queued_actions`, `discard_queued_actions`, `get_snapshots`, `restore_snapshot`
 - Inspector: `get_inspector_properties`, `set_inspector_property`, `set_inspector_properties`
-- Project Settings: `get_project_settings`, `get_project_setting`, `set_project_setting`
+- Project Settings: `get_project_settings`, `get_project_setting`, `set_project_setting`, `get_common_project_settings`, `set_common_project_settings`, `get_autoloads`, `add_autoload`, `remove_autoload`, `get_layer_names`, `set_layer_name`
 - Input Map: `get_input_actions`, `add_input_action`, `remove_input_action`
-- Resources: `get_resource_files`, `get_resource_info`, `get_resource_import_info`, `create_resource`, `set_resource_property`, `save_resource`, `scan_resource_filesystem`, `reimport_resources`
+- Resources: `get_resource_files`, `get_resource_info`, `get_resource_import_info`, `create_resource`, `set_resource_property`, `save_resource`, `create_material`, `create_theme`, `scan_resource_filesystem`, `reimport_resources`
 - Animation: `get_animation_players`, `get_animation_player_info`, `create_animation`, `set_animation_properties`, `add_animation_value_key`
 - Validation: `run_check_only`, `run_project_headless`, `get_last_run_report`
 - Controlled Raw API: `get_raw_mode_status`, `raw_editor_call`, `raw_object_call`, `raw_classdb_query`, `raw_project_call`
@@ -227,6 +236,9 @@ Run checks:
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/control_bridge_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/file_bridge_smoke.gd
 /Applications/Godot.app/Contents/MacOS/Godot --headless --path . -s tests/status_dock_smoke.gd
+bash -n tools/godot_bridge_send.sh tools/godot_bridge_bootstrap_project.sh tools/godot_bridge_guard.sh
+python3 -m json.tool docs/schema/commands.schema.json >/tmp/godot_bridge_commands_schema.json
+tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
 ```
 
 Use your local Godot executable path if it differs from the macOS path above.

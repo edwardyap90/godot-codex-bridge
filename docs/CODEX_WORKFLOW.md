@@ -56,14 +56,35 @@ Use these helper commands when starting a task:
 
 ```bash
 tools/godot_bridge_send.sh doctor --deep
+tools/godot_bridge_send.sh doctor --project
 tools/godot_bridge_send.sh capabilities
+tools/godot_bridge_send.sh schema
 tools/godot_bridge_send.sh timeline
+tools/godot_bridge_send.sh queue-summary
 tools/godot_bridge_send.sh raw-status
 ```
 
 Codex should prefer safe commands and queued action batches. Each response now
 includes `schema_version`, `ui_feedback`, `warnings`, and `changed_paths` so
 the agent can explain what happened and the Godot dock can show the same state.
+
+For multi-project work, run `doctor --project` before editing. It prints the
+detected project root, helper path, queue status, project identity, and raw mode
+state so a copied helper or wrong working directory is visible before any
+changes are applied.
+
+## Visible Review in Godot
+
+The Dock Console has tabs for Overview, Pending, Snapshots, Run, and Raw Mode.
+Codex should queue visible editor changes when practical:
+
+```bash
+tools/godot_bridge_send.sh --json '{"command":"queue_actions","summary":"Add Camera2D","actions":[{"type":"add_node","parent_path":".","node_type":"Camera2D","name":"Camera2D"}]}'
+tools/godot_bridge_send.sh queue-summary
+```
+
+The user can then apply or discard the batch in the Godot dock. Snapshot
+restore is also available from the dock.
 
 ## Controlled Raw API
 

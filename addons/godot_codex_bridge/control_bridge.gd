@@ -14,6 +14,44 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 const CONTROL_PLANE_SCHEMA_VERSION := 2
 const RAW_AUDIT_LIMIT := 100
+const BRIDGE_VERSION := "0.5.0"
+const LAYER_FAMILIES := {
+	"2d_physics": {
+		"prefix": "layer_names/2d_physics/layer_",
+		"count": 20
+	},
+	"2d_render": {
+		"prefix": "layer_names/2d_render/layer_",
+		"count": 20
+	},
+	"3d_physics": {
+		"prefix": "layer_names/3d_physics/layer_",
+		"count": 32
+	},
+	"3d_render": {
+		"prefix": "layer_names/3d_render/layer_",
+		"count": 20
+	},
+	"2d_navigation": {
+		"prefix": "layer_names/2d_navigation/layer_",
+		"count": 32
+	},
+	"3d_navigation": {
+		"prefix": "layer_names/3d_navigation/layer_",
+		"count": 32
+	}
+}
+const COMMON_PROJECT_SETTINGS := {
+	"project_name": "application/config/name",
+	"main_scene": "application/run/main_scene",
+	"window_width": "display/window/size/viewport_width",
+	"window_height": "display/window/size/viewport_height",
+	"stretch_mode": "display/window/stretch/mode",
+	"stretch_aspect": "display/window/stretch/aspect",
+	"rendering_method": "rendering/renderer/rendering_method",
+	"physics_ticks_per_second": "physics/common/physics_ticks_per_second",
+	"audio_mix_rate": "audio/driver/mix_rate"
+}
 
 signal request_handled(command: String, ok: bool, message: String, request_id: String)
 signal request_observed(entry: Dictionary)
@@ -105,6 +143,10 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _response(true, "ok", {
 				"capabilities": _editor_capabilities_v2()
 			})
+		"get_command_schema":
+			return _response(true, "ok", {
+				"schema": _command_schema()
+			})
 		"get_command_timeline":
 			return _response(true, "ok", {
 				"timeline": history.duplicate(true),
@@ -140,6 +182,8 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 				"pending": _pending_action_summaries(true),
 				"pending_path": _pending_actions_path()
 			})
+		"get_queue_summary":
+			return _queue_summary()
 		"queue_actions":
 			return _queue_actions(request)
 		"apply_queued_actions":
@@ -202,6 +246,10 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _set_resource_property(request)
 		"save_resource":
 			return _save_resource(request)
+		"create_material":
+			return _create_material(request)
+		"create_theme":
+			return _create_theme(request)
 		"scan_resource_filesystem":
 			return _scan_resource_filesystem(request)
 		"reimport_resources":
@@ -222,6 +270,20 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _get_project_setting(request)
 		"set_project_setting":
 			return _set_project_setting(request)
+		"get_common_project_settings":
+			return _get_common_project_settings(request)
+		"set_common_project_settings":
+			return _set_common_project_settings(request)
+		"get_autoloads":
+			return _get_autoloads(request)
+		"add_autoload":
+			return _add_autoload(request)
+		"remove_autoload":
+			return _remove_autoload(request)
+		"get_layer_names":
+			return _get_layer_names(request)
+		"set_layer_name":
+			return _set_layer_name(request)
 		"get_input_actions":
 			return _get_input_actions(request)
 		"add_input_action":
@@ -268,6 +330,7 @@ func bridge_status() -> Dictionary:
 	var file_root := _file_bridge_root()
 	var file_enabled := _file_bridge_enabled()
 	return {
+		"bridge_version": BRIDGE_VERSION,
 		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
 		"control_plane": _control_plane_status(),
 		"project": _project_identity(),
@@ -305,9 +368,22 @@ func bridge_status() -> Dictionary:
 	}
 
 
+func console_state() -> Dictionary:
+	return {
+		"status": bridge_status(),
+		"pending": _pending_action_summaries(true),
+		"snapshots": snapshots.duplicate(true),
+		"run_reports": run_reports.duplicate(true),
+		"last_run_report": _run_report_summary(last_run_report),
+		"raw_mode": _raw_mode_status(),
+		"raw_audit": raw_audit_entries.duplicate(true)
+	}
+
+
 func _control_plane_status() -> Dictionary:
 	return {
 		"name": "Godot Control Plane",
+		"bridge_version": BRIDGE_VERSION,
 		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
 		"godot_version": Engine.get_version_info(),
 		"default_mode": "safe",
@@ -341,7 +417,14 @@ func _editor_capabilities() -> Dictionary:
 		"project_settings": [
 			"get_project_settings",
 			"get_project_setting",
-			"set_project_setting"
+			"set_project_setting",
+			"get_common_project_settings",
+			"set_common_project_settings",
+			"get_autoloads",
+			"add_autoload",
+			"remove_autoload",
+			"get_layer_names",
+			"set_layer_name"
 		],
 		"input_map": [
 			"get_input_actions",
@@ -355,6 +438,8 @@ func _editor_capabilities() -> Dictionary:
 			"create_resource",
 			"set_resource_property",
 			"save_resource",
+			"create_material",
+			"create_theme",
 			"scan_resource_filesystem",
 			"reimport_resources"
 		],
@@ -380,7 +465,24 @@ func _editor_capabilities() -> Dictionary:
 			"apply_queued_actions",
 			"discard_queued_actions",
 			"get_snapshots",
-			"restore_snapshot"
+			"restore_snapshot",
+			"get_queue_summary"
+		],
+		"project_surface": [
+			"get_common_project_settings",
+			"set_common_project_settings",
+			"get_autoloads",
+			"add_autoload",
+			"remove_autoload",
+			"get_layer_names",
+			"set_layer_name"
+		],
+		"resource_helpers": [
+			"create_material",
+			"create_theme"
+		],
+		"schema": [
+			"get_command_schema"
 		]
 	}
 
@@ -424,6 +526,85 @@ func _editor_capabilities_v2() -> Dictionary:
 			"timeline_command": "get_command_timeline"
 		},
 		"legacy": legacy
+	}
+
+
+func _command_schema() -> Dictionary:
+	return {
+		"schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+		"bridge_version": BRIDGE_VERSION,
+		"request_fields": ["schema_version", "request_id", "project_root", "mode", "dry_run", "transaction_id", "command"],
+		"response_fields": ["schema_version", "ok", "message", "data", "ui_feedback", "warnings", "changed_paths"],
+		"encoded_value_types": ["Vector2", "Vector2i", "Vector3", "Color", "NodePath", "StringName", "PackedStringArray", "PackedFloat32Array", "PackedVector2Array", "Resource"],
+		"commands": _command_schema_entries()
+	}
+
+
+func _command_schema_entries() -> Array:
+	return [
+		_command_schema_entry("ping", "status", false, [], []),
+		_command_schema_entry("get_project_identity", "status", false, [], []),
+		_command_schema_entry("get_bridge_status", "status", false, [], []),
+		_command_schema_entry("list_capabilities_v2", "status", false, [], []),
+		_command_schema_entry("get_command_schema", "schema", false, [], []),
+		_command_schema_entry("get_command_timeline", "status", false, [], []),
+		_command_schema_entry("get_queue_summary", "queue", false, [], []),
+		_command_schema_entry("queue_actions", "queue", true, ["actions"], ["summary", "queue_id"]),
+		_command_schema_entry("apply_queued_actions", "queue", true, ["queue_id"], []),
+		_command_schema_entry("discard_queued_actions", "queue", true, ["queue_id"], []),
+		_command_schema_entry("get_snapshots", "snapshot", false, [], []),
+		_command_schema_entry("restore_snapshot", "snapshot", true, ["snapshot_id"], []),
+		_command_schema_entry("get_editor_context", "scene", false, [], []),
+		_command_schema_entry("get_scene_tree", "scene", false, [], []),
+		_command_schema_entry("select_node", "scene", false, ["node_path"], []),
+		_command_schema_entry("get_inspector_properties", "inspector", false, [], ["node_path", "resource_path", "include_internal", "include_values", "max_count"]),
+		_command_schema_entry("set_inspector_property", "inspector", true, ["property", "value"], ["node_path", "resource_path"]),
+		_command_schema_entry("set_inspector_properties", "inspector", true, ["properties"], ["node_path", "resource_path"]),
+		_command_schema_entry("get_project_settings", "project", false, [], ["prefix", "include_values", "max_count"]),
+		_command_schema_entry("get_project_setting", "project", false, ["setting"], []),
+		_command_schema_entry("set_project_setting", "project", true, ["setting", "value"], ["save"]),
+		_command_schema_entry("get_common_project_settings", "project", false, [], []),
+		_command_schema_entry("set_common_project_settings", "project", true, ["settings"], ["save"]),
+		_command_schema_entry("get_autoloads", "project", false, [], []),
+		_command_schema_entry("add_autoload", "project", true, ["name", "path"], ["singleton", "save"]),
+		_command_schema_entry("remove_autoload", "project", true, ["name"], ["save"]),
+		_command_schema_entry("get_layer_names", "project", false, [], ["family", "max_count"]),
+		_command_schema_entry("set_layer_name", "project", true, ["family", "layer", "name"], ["save"]),
+		_command_schema_entry("get_input_actions", "input", false, [], ["prefix", "include_builtin"]),
+		_command_schema_entry("add_input_action", "input", true, ["action"], ["deadzone", "events", "replace_events", "save"]),
+		_command_schema_entry("remove_input_action", "input", true, ["action"], ["save"]),
+		_command_schema_entry("get_resource_files", "resource", false, [], ["root", "extensions", "max_count"]),
+		_command_schema_entry("get_resource_info", "resource", false, ["path"], ["include_loaded", "include_dependencies", "include_import"]),
+		_command_schema_entry("create_resource", "resource", true, ["path", "resource_type"], ["replace", "properties"]),
+		_command_schema_entry("create_material", "resource", true, ["path"], ["material_type", "replace", "properties"]),
+		_command_schema_entry("create_theme", "resource", true, ["path"], ["replace", "colors", "constants", "font_sizes"]),
+		_command_schema_entry("set_resource_property", "resource", true, ["path", "property", "value"], []),
+		_command_schema_entry("save_resource", "resource", true, ["path"], []),
+		_command_schema_entry("scan_resource_filesystem", "import", false, [], ["scan_sources"]),
+		_command_schema_entry("reimport_resources", "import", true, ["paths"], []),
+		_command_schema_entry("get_animation_players", "animation", false, [], []),
+		_command_schema_entry("get_animation_player_info", "animation", false, ["node_path"], []),
+		_command_schema_entry("create_animation", "animation", true, ["node_path", "animation_name"], ["length", "loop_mode", "library", "replace"]),
+		_command_schema_entry("set_animation_properties", "animation", true, ["node_path", "animation_name"], ["length", "loop_mode", "library"]),
+		_command_schema_entry("add_animation_value_key", "animation", true, ["node_path", "animation_name", "target_path", "property", "time", "value"], ["library"]),
+		_command_schema_entry("run_check_only", "run", false, [], []),
+		_command_schema_entry("run_project_headless", "run", false, [], ["duration_sec"]),
+		_command_schema_entry("get_raw_mode_status", "raw", false, [], []),
+		_command_schema_entry("raw_editor_call", "raw", true, ["target", "method"], ["args"]),
+		_command_schema_entry("raw_object_call", "raw", true, ["method"], ["node_path", "resource_path", "args"]),
+		_command_schema_entry("raw_classdb_query", "raw", false, ["query"], ["class", "method", "property", "signal"]),
+		_command_schema_entry("raw_project_call", "raw", true, ["target", "method"], ["args"])
+	]
+
+
+func _command_schema_entry(command: String, family: String, mutates: bool, required: Array, optional: Array) -> Dictionary:
+	return {
+		"command": command,
+		"family": family,
+		"mode": "raw" if command.begins_with("raw_") else "safe",
+		"mutates": mutates,
+		"required": required,
+		"optional": optional
 	}
 
 
@@ -981,6 +1162,19 @@ func _request_summary(command: String, data: Dictionary) -> String:
 		"restore_snapshot":
 			var snapshot := data.get("snapshot", {}) as Dictionary
 			return "Restored snapshot " + str(snapshot.get("snapshot_id", ""))
+		"add_autoload", "remove_autoload":
+			var after := data.get("after", {}) as Dictionary
+			var before := data.get("before", {}) as Dictionary
+			var item := after if not after.is_empty() else before
+			return "Autoload " + str(item.get("name", ""))
+		"set_layer_name":
+			return "Layer " + str(data.get("family", "")) + "/" + str(data.get("layer", "")) + " -> " + str(data.get("after", ""))
+		"set_common_project_settings":
+			return "Updated " + str((data.get("changes", []) as Array).size()) + " common project settings"
+		"create_material", "create_theme":
+			return "Created " + str(data.get("path", ""))
+		"get_queue_summary":
+			return str(data.get("pending_count", 0)) + " pending batches / " + str(data.get("action_count", 0)) + " actions"
 		"select_node":
 			var selection := data.get("selection", []) as Array
 			return "Selected " + str(selection.size()) + " node(s)"
@@ -1046,7 +1240,7 @@ func _changed_paths_for_response(command: String, data: Dictionary) -> Array:
 	if data.has("path"):
 		_append_unique_path(paths, str(data.get("path", "")))
 	match command:
-		"set_project_setting", "add_input_action", "remove_input_action":
+		"set_project_setting", "set_common_project_settings", "add_autoload", "remove_autoload", "set_layer_name", "add_input_action", "remove_input_action":
 			_append_unique_path(paths, "res://project.godot")
 	return paths
 
@@ -1289,6 +1483,77 @@ func _save_resource(request: Dictionary) -> Dictionary:
 		"path": path,
 		"resource": _resource_file_info(path, true)
 	}, [], [path] if save_error == OK else [])
+
+
+func _create_material(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("resource_path", ""))))
+	if path.is_empty():
+		return _response(false, "Material path is invalid.")
+	if not (path.get_extension().to_lower() in ["tres", "res"]):
+		return _response(false, "Material path must end with .tres or .res.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Material resource already exists: " + path)
+
+	var material_type := str(request.get("material_type", request.get("resource_type", "CanvasItemMaterial"))).strip_edges()
+	var material := _instantiate_resource(material_type, request.get("properties", {}))
+	if material == null or not material is Material:
+		return _response(false, "Cannot instantiate Material type: " + material_type)
+	material.resource_path = path
+	return _save_new_resource(material, path, "Material created.", "create_material " + path)
+
+
+func _create_theme(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("resource_path", ""))))
+	if path.is_empty():
+		return _response(false, "Theme path is invalid.")
+	if not (path.get_extension().to_lower() in ["tres", "res"]):
+		return _response(false, "Theme path must end with .tres or .res.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Theme resource already exists: " + path)
+
+	var theme := Theme.new()
+	theme.resource_path = path
+	var errors: Array = []
+	errors.append_array(_apply_theme_values(theme, "colors", request.get("colors", {})))
+	errors.append_array(_apply_theme_values(theme, "constants", request.get("constants", {})))
+	errors.append_array(_apply_theme_values(theme, "font_sizes", request.get("font_sizes", {})))
+	if not errors.is_empty():
+		return _response(false, "Theme entries contained errors.", {
+			"errors": errors
+		})
+	return _save_new_resource(theme, path, "Theme created.", "create_theme " + path)
+
+
+func _save_new_resource(resource: Resource, path: String, success_message: String, snapshot_reason: String) -> Dictionary:
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create resource directory: " + error_string(dir_error), {
+			"path": path
+		})
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], snapshot_reason)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; resource was not saved.", {
+			"snapshot": snapshot
+		})
+
+	var save_error := ResourceSaver.save(resource, path)
+	if save_error != OK:
+		return _response(false, "Failed to save resource: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		}, [], [path])
+	_refresh_editor_filesystem()
+	return _response(true, success_message, {
+		"path": path,
+		"resource": _resource_file_info(path, true),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
 
 
 func _scan_resource_filesystem(request: Dictionary) -> Dictionary:
@@ -1595,6 +1860,189 @@ func _set_project_setting(request: Dictionary) -> Dictionary:
 		"saved": save_result == OK,
 		"snapshot": _snapshot_summary(snapshot)
 	})
+
+
+func _get_common_project_settings(_request: Dictionary) -> Dictionary:
+	var settings := {}
+	for key in COMMON_PROJECT_SETTINGS.keys():
+		var setting := str(COMMON_PROJECT_SETTINGS[key])
+		settings[str(key)] = {
+			"setting": setting,
+			"exists": ProjectSettings.has_setting(setting),
+			"value": _encode_value(ProjectSettings.get_setting(setting, null))
+		}
+	return _response(true, "ok", {
+		"settings": settings
+	})
+
+
+func _set_common_project_settings(request: Dictionary) -> Dictionary:
+	var raw_settings = request.get("settings", {})
+	if typeof(raw_settings) != TYPE_DICTIONARY:
+		return _response(false, "set_common_project_settings requires a settings Dictionary.")
+	var requested := raw_settings as Dictionary
+	var changes: Array = []
+	var decoded_values := {}
+	for key in requested.keys():
+		var name := str(key)
+		if not COMMON_PROJECT_SETTINGS.has(name):
+			return _response(false, "Unsupported common project setting: " + name, {
+				"supported": COMMON_PROJECT_SETTINGS.keys()
+			})
+		var decoded := _decode_common_project_setting(name, requested[key])
+		if not bool(decoded.get("ok", false)):
+			return _response(false, str(decoded.get("message", "")))
+		decoded_values[name] = decoded.get("value")
+
+	if decoded_values.is_empty():
+		return _response(false, "No common project settings provided.")
+
+	var snapshot := _create_project_file_snapshot("set_common_project_settings")
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to snapshot project.godot; settings were not changed.", {
+			"snapshot": snapshot
+		})
+
+	for key in decoded_values.keys():
+		var setting := str(COMMON_PROJECT_SETTINGS[key])
+		var before_value = ProjectSettings.get_setting(setting, null)
+		ProjectSettings.set_setting(setting, decoded_values[key])
+		changes.append({
+			"key": str(key),
+			"setting": setting,
+			"before": _encode_value(before_value),
+			"after": _encode_value(ProjectSettings.get_setting(setting))
+		})
+
+	var save_result := _save_project_settings_if_requested(request)
+	return _response(save_result == OK, "Common project settings updated." if save_result == OK else "Common project settings updated, but saving failed: " + error_string(save_result), {
+		"changes": changes,
+		"saved": save_result == OK,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], ["res://project.godot"])
+
+
+func _get_autoloads(_request: Dictionary) -> Dictionary:
+	var autoloads: Array = []
+	for property_info in ProjectSettings.get_property_list():
+		if typeof(property_info) != TYPE_DICTIONARY:
+			continue
+		var setting := str((property_info as Dictionary).get("name", ""))
+		if not setting.begins_with("autoload/"):
+			continue
+		var name := setting.trim_prefix("autoload/")
+		autoloads.append(_autoload_snapshot(name))
+	autoloads.sort_custom(func(a, b): return str(a.get("name", "")) < str(b.get("name", "")))
+	return _response(true, "ok", {
+		"autoloads": autoloads
+	})
+
+
+func _add_autoload(request: Dictionary) -> Dictionary:
+	var name := _normalize_autoload_name(str(request.get("name", "")))
+	if name.is_empty():
+		return _response(false, "Autoload name is invalid.")
+	var path := _normalize_action_path(str(request.get("path", request.get("script_path", ""))))
+	if path.is_empty():
+		return _response(false, "Autoload path is invalid or not allowed.")
+	if not (path.get_extension().to_lower() in ["gd", "tscn", "scn"]):
+		return _response(false, "Autoload path must be a .gd, .tscn, or .scn file.")
+	if not FileAccess.file_exists(path):
+		return _response(false, "Autoload file does not exist: " + path)
+
+	var setting := "autoload/" + name
+	var before := _autoload_snapshot(name)
+	var snapshot := _create_project_file_snapshot("add_autoload " + name)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to snapshot project.godot; autoload was not changed.", {
+			"snapshot": snapshot
+		})
+
+	var singleton := bool(request.get("singleton", true))
+	ProjectSettings.set_setting(setting, ("*" if singleton else "") + path)
+	var save_result := _save_project_settings_if_requested(request)
+	return _response(save_result == OK, "Autoload updated." if save_result == OK else "Autoload updated, but saving failed: " + error_string(save_result), {
+		"before": before,
+		"after": _autoload_snapshot(name),
+		"saved": save_result == OK,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], ["res://project.godot"])
+
+
+func _remove_autoload(request: Dictionary) -> Dictionary:
+	var name := _normalize_autoload_name(str(request.get("name", "")))
+	if name.is_empty():
+		return _response(false, "Autoload name is invalid.")
+	var setting := "autoload/" + name
+	var before := _autoload_snapshot(name)
+	var snapshot := _create_project_file_snapshot("remove_autoload " + name)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to snapshot project.godot; autoload was not changed.", {
+			"snapshot": snapshot
+		})
+
+	if ProjectSettings.has_setting(setting):
+		ProjectSettings.clear(setting)
+	var save_result := _save_project_settings_if_requested(request)
+	return _response(save_result == OK, "Autoload removed." if save_result == OK else "Autoload removed, but saving failed: " + error_string(save_result), {
+		"before": before,
+		"after": _autoload_snapshot(name),
+		"saved": save_result == OK,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], ["res://project.godot"])
+
+
+func _get_layer_names(request: Dictionary) -> Dictionary:
+	var family_filter := str(request.get("family", "")).strip_edges()
+	var max_count := int(request.get("max_count", 32))
+	max_count = mini(maxi(max_count, 1), 32)
+	var families: Array = []
+	for family in LAYER_FAMILIES.keys():
+		var family_name := str(family)
+		if not family_filter.is_empty() and family_name != family_filter:
+			continue
+		families.append(_layer_family_snapshot(family_name, max_count))
+	if not family_filter.is_empty() and families.is_empty():
+		return _response(false, "Unsupported layer family: " + family_filter, {
+			"supported": LAYER_FAMILIES.keys()
+		})
+	families.sort_custom(func(a, b): return str(a.get("family", "")) < str(b.get("family", "")))
+	return _response(true, "ok", {
+		"families": families
+	})
+
+
+func _set_layer_name(request: Dictionary) -> Dictionary:
+	var family := str(request.get("family", "")).strip_edges()
+	if not LAYER_FAMILIES.has(family):
+		return _response(false, "Unsupported layer family: " + family, {
+			"supported": LAYER_FAMILIES.keys()
+		})
+	var layer := int(request.get("layer", request.get("index", 0)))
+	var family_info := LAYER_FAMILIES[family] as Dictionary
+	var layer_count := int(family_info.get("count", 20))
+	if layer < 1 or layer > layer_count:
+		return _response(false, "Layer index must be between 1 and " + str(layer_count) + ".")
+	var layer_name := str(request.get("name", request.get("value", ""))).strip_edges()
+	var setting := str(family_info.get("prefix", "")) + str(layer)
+	var before_value = ProjectSettings.get_setting(setting, "")
+	var snapshot := _create_project_file_snapshot("set_layer_name " + family + " " + str(layer))
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to snapshot project.godot; layer name was not changed.", {
+			"snapshot": snapshot
+		})
+
+	ProjectSettings.set_setting(setting, layer_name)
+	var save_result := _save_project_settings_if_requested(request)
+	return _response(save_result == OK, "Layer name updated." if save_result == OK else "Layer name updated, but saving failed: " + error_string(save_result), {
+		"family": family,
+		"layer": layer,
+		"setting": setting,
+		"before": _encode_value(before_value),
+		"after": _encode_value(ProjectSettings.get_setting(setting, "")),
+		"saved": save_result == OK,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], ["res://project.godot"])
 
 
 func _get_input_actions(request: Dictionary) -> Dictionary:
@@ -2431,6 +2879,30 @@ func _discard_queued_actions(request: Dictionary) -> Dictionary:
 	})
 
 
+func _queue_summary() -> Dictionary:
+	var pending := _pending_action_summaries(true)
+	var action_count := 0
+	var changed_paths: Array = []
+	for item in pending:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var queued := item as Dictionary
+		action_count += int(queued.get("action_count", 0))
+		var preview := queued.get("preview", {}) as Dictionary
+		for action_item in preview.get("actions", []) as Array:
+			if typeof(action_item) != TYPE_DICTIONARY:
+				continue
+			_append_unique_path(changed_paths, str((action_item as Dictionary).get("target", "")))
+
+	return _response(true, "ok", {
+		"pending_count": pending.size(),
+		"action_count": action_count,
+		"pending": pending,
+		"changed_targets": changed_paths,
+		"pending_path": _pending_actions_path()
+	})
+
+
 func _apply_actions_with_snapshot(actions: Array, reason: String) -> Dictionary:
 	var preview := _preview_actions(actions)
 	if not bool(preview.get("ok", false)):
@@ -3206,6 +3678,13 @@ func _normalize_input_action_name(raw_action: String) -> String:
 	return action
 
 
+func _normalize_autoload_name(raw_name: String) -> String:
+	var name := raw_name.strip_edges()
+	if name.is_empty() or not name.is_valid_identifier():
+		return ""
+	return name
+
+
 func _project_root() -> String:
 	return _normalize_absolute_path(ProjectSettings.globalize_path("res://"))
 
@@ -3251,6 +3730,112 @@ func _save_project_settings_if_requested(request: Dictionary) -> int:
 	if not bool(request.get("save", true)):
 		return OK
 	return ProjectSettings.save()
+
+
+func _decode_common_project_setting(name: String, raw_value) -> Dictionary:
+	match name:
+		"project_name":
+			var project_name := str(raw_value).strip_edges()
+			if project_name.is_empty():
+				return {
+					"ok": false,
+					"message": "project_name cannot be empty."
+				}
+			return {
+				"ok": true,
+				"value": project_name
+			}
+		"main_scene":
+			var scene_path := _normalize_scene_path(str(raw_value))
+			if scene_path.is_empty():
+				return {
+					"ok": false,
+					"message": "main_scene must be a valid .tscn path."
+				}
+			return {
+				"ok": true,
+				"value": scene_path
+			}
+		"window_width", "window_height":
+			var dimension := int(raw_value)
+			if dimension < 1 or dimension > 16384:
+				return {
+					"ok": false,
+					"message": name + " must be between 1 and 16384."
+				}
+			return {
+				"ok": true,
+				"value": dimension
+			}
+		"physics_ticks_per_second":
+			var ticks := int(raw_value)
+			if ticks < 1 or ticks > 1000:
+				return {
+					"ok": false,
+					"message": "physics_ticks_per_second must be between 1 and 1000."
+				}
+			return {
+				"ok": true,
+				"value": ticks
+			}
+		"audio_mix_rate":
+			var mix_rate := int(raw_value)
+			if mix_rate < 8000 or mix_rate > 384000:
+				return {
+					"ok": false,
+					"message": "audio_mix_rate must be between 8000 and 384000."
+				}
+			return {
+				"ok": true,
+				"value": mix_rate
+			}
+		_:
+			return {
+				"ok": true,
+				"value": _decode_value(raw_value)
+			}
+
+
+func _autoload_snapshot(name: String) -> Dictionary:
+	var setting := "autoload/" + name
+	if not ProjectSettings.has_setting(setting):
+		return {
+			"name": name,
+			"exists": false,
+			"setting": setting
+		}
+	var raw_value := str(ProjectSettings.get_setting(setting, ""))
+	var singleton := raw_value.begins_with("*")
+	var path := raw_value.substr(1) if singleton else raw_value
+	return {
+		"name": name,
+		"exists": true,
+		"setting": setting,
+		"path": path,
+		"singleton": singleton,
+		"raw_value": raw_value
+	}
+
+
+func _layer_family_snapshot(family: String, requested_max_count: int) -> Dictionary:
+	var family_info := LAYER_FAMILIES[family] as Dictionary
+	var layer_count := mini(int(family_info.get("count", 20)), requested_max_count)
+	var prefix := str(family_info.get("prefix", ""))
+	var layers: Array = []
+	for layer_index in range(1, layer_count + 1):
+		var setting := prefix + str(layer_index)
+		layers.append({
+			"layer": layer_index,
+			"setting": setting,
+			"name": str(ProjectSettings.get_setting(setting, "")),
+			"exists": ProjectSettings.has_setting(setting)
+		})
+	return {
+		"family": family,
+		"prefix": prefix,
+		"layer_count": int(family_info.get("count", 20)),
+		"layers": layers
+	}
 
 
 func _input_action_snapshot(action_name: String) -> Dictionary:
@@ -3795,6 +4380,55 @@ func _instantiate_resource(resource_type: String, raw_properties) -> Resource:
 			if _has_property(resource, name):
 				resource.set(name, _decode_value(properties[property_name]))
 	return resource
+
+
+func _apply_theme_values(theme: Theme, section: String, raw_values) -> Array:
+	var errors: Array = []
+	var entries := _theme_entries(raw_values)
+	for entry in entries:
+		var name := str(entry.get("name", "")).strip_edges()
+		var type_name := str(entry.get("type_name", entry.get("type", ""))).strip_edges()
+		if name.is_empty() or type_name.is_empty():
+			errors.append(section + " entry is missing name or type_name.")
+			continue
+		match section:
+			"colors":
+				var color_value = _decode_value(entry.get("value"))
+				if not color_value is Color:
+					errors.append("Theme color " + type_name + "/" + name + " is not a Color.")
+					continue
+				theme.set_color(StringName(name), StringName(type_name), color_value)
+			"constants":
+				theme.set_constant(StringName(name), StringName(type_name), int(entry.get("value", 0)))
+			"font_sizes":
+				theme.set_font_size(StringName(name), StringName(type_name), int(entry.get("value", 0)))
+	return errors
+
+
+func _theme_entries(raw_values) -> Array:
+	var entries: Array = []
+	if typeof(raw_values) == TYPE_DICTIONARY:
+		var values := raw_values as Dictionary
+		for raw_key in values.keys():
+			var key := str(raw_key)
+			var parts := key.split("/", false, 1)
+			if parts.size() != 2:
+				entries.append({
+					"name": "",
+					"type_name": "",
+					"value": values[raw_key]
+				})
+				continue
+			entries.append({
+				"type_name": str(parts[0]),
+				"name": str(parts[1]),
+				"value": values[raw_key]
+			})
+	elif typeof(raw_values) == TYPE_ARRAY:
+		for item in raw_values as Array:
+			if typeof(item) == TYPE_DICTIONARY:
+				entries.append(item as Dictionary)
+	return entries
 
 
 func _record_history(entry: Dictionary) -> void:

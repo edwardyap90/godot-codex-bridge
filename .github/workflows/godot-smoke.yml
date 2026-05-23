@@ -40,6 +40,8 @@ jobs:
           bash -n tools/godot_bridge_send.sh
           bash -n tools/godot_bridge_bootstrap_project.sh
           bash -n tools/godot_bridge_guard.sh
+          python3 -m json.tool docs/schema/commands.schema.json >/tmp/godot_bridge_commands_schema.json
+          tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
 
       - name: Run smoke tests
         run: |

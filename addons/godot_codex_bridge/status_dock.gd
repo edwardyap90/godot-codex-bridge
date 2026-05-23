@@ -1,12 +1,15 @@
 @tool
 extends VBoxContainer
 
-const RECENT_LIMIT := 5
+const RECENT_LIMIT := 8
 
 var control_bridge: Node
 var file_bridge: Node
 var recent_events: Array = []
+var pending_batches: Array = []
+var snapshot_items: Array = []
 
+var tab_container: TabContainer
 var plane_label: Label
 var project_label: Label
 var root_label: Label
@@ -24,6 +27,15 @@ var path_label: Label
 var warning_label: Label
 var recent_label: Label
 var updated_label: Label
+var pending_list: ItemList
+var pending_detail_label: Label
+var apply_button: Button
+var discard_button: Button
+var snapshot_list: ItemList
+var snapshot_detail_label: Label
+var restore_button: Button
+var run_report_label: Label
+var raw_detail_label: Label
 
 
 func setup(p_control_bridge: Node, p_file_bridge: Node) -> void:
@@ -48,39 +60,158 @@ func _ready() -> void:
 
 
 func _build_ui() -> void:
-	custom_minimum_size = Vector2(360, 220)
+	if tab_container != null:
+		return
+
+	custom_minimum_size = Vector2(380, 320)
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 
+	var title_row := HBoxContainer.new()
+	title_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_child(title_row)
+
 	var title := Label.new()
 	title.text = "Codex Bridge Console"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_size_override("font_size", 18)
-	add_child(title)
+	title_row.add_child(title)
 
-	plane_label = _add_row("Control plane", "")
-	project_label = _add_row("Project", "")
-	root_label = _add_row("Root", "")
-	security_label = _add_row("Safety", "")
-	raw_label = _add_row("Raw mode", "")
-	queue_label = _add_row("File queue", "")
-	history_label = _add_row("History", "")
-	pending_label = _add_row("Pending", "")
-	snapshot_label = _add_row("Snapshots", "")
-	run_label = _add_row("Last run", "")
-	command_label = _add_row("Last command", "Waiting for Codex")
-	result_label = _add_row("Result", "")
-	visual_label = _add_row("Visual feedback", "No recent editor focus")
-	path_label = _add_row("Changed paths", "")
-	warning_label = _add_row("Warnings", "")
-	recent_label = _add_row("Recent", "No commands yet")
-	updated_label = _add_row("Updated", "")
+	var refresh_button := Button.new()
+	refresh_button.text = "Refresh"
+	refresh_button.tooltip_text = "Refresh bridge console state"
+	refresh_button.pressed.connect(Callable(self, "_on_refresh_pressed"))
+	title_row.add_child(refresh_button)
+
+	tab_container = TabContainer.new()
+	tab_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	tab_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	add_child(tab_container)
+
+	_build_overview_tab()
+	_build_pending_tab()
+	_build_snapshots_tab()
+	_build_run_tab()
+	_build_raw_tab()
 
 
-func _add_row(name: String, value: String) -> Label:
+func _build_overview_tab() -> void:
+	var overview := ScrollContainer.new()
+	overview.name = "Overview"
+	overview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	overview.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_container.add_child(overview)
+
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	overview.add_child(body)
+
+	plane_label = _add_row(body, "Control plane", "")
+	project_label = _add_row(body, "Project", "")
+	root_label = _add_row(body, "Root", "")
+	security_label = _add_row(body, "Safety", "")
+	raw_label = _add_row(body, "Raw mode", "")
+	queue_label = _add_row(body, "File queue", "")
+	history_label = _add_row(body, "History", "")
+	pending_label = _add_row(body, "Pending", "")
+	snapshot_label = _add_row(body, "Snapshots", "")
+	run_label = _add_row(body, "Last run", "")
+	command_label = _add_row(body, "Last command", "Waiting for Codex")
+	result_label = _add_row(body, "Result", "")
+	visual_label = _add_row(body, "Visual feedback", "No recent editor focus")
+	path_label = _add_row(body, "Changed paths", "")
+	warning_label = _add_row(body, "Warnings", "")
+	recent_label = _add_row(body, "Recent", "No commands yet")
+	updated_label = _add_row(body, "Updated", "")
+
+
+func _build_pending_tab() -> void:
+	var pending_tab := VBoxContainer.new()
+	pending_tab.name = "Pending"
+	pending_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pending_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_container.add_child(pending_tab)
+
+	pending_detail_label = _add_row(pending_tab, "Queue", "No pending batches")
+	pending_list = ItemList.new()
+	pending_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pending_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	pending_list.custom_minimum_size = Vector2(0, 160)
+	pending_tab.add_child(pending_list)
+
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pending_tab.add_child(row)
+
+	apply_button = Button.new()
+	apply_button.text = "Apply"
+	apply_button.tooltip_text = "Apply the selected pending action batch"
+	apply_button.pressed.connect(Callable(self, "_on_apply_pressed"))
+	row.add_child(apply_button)
+
+	discard_button = Button.new()
+	discard_button.text = "Discard"
+	discard_button.tooltip_text = "Discard the selected pending action batch"
+	discard_button.pressed.connect(Callable(self, "_on_discard_pressed"))
+	row.add_child(discard_button)
+
+
+func _build_snapshots_tab() -> void:
+	var snapshots_tab := VBoxContainer.new()
+	snapshots_tab.name = "Snapshots"
+	snapshots_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	snapshots_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_container.add_child(snapshots_tab)
+
+	snapshot_detail_label = _add_row(snapshots_tab, "Snapshots", "No snapshots")
+	snapshot_list = ItemList.new()
+	snapshot_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	snapshot_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	snapshot_list.custom_minimum_size = Vector2(0, 160)
+	snapshots_tab.add_child(snapshot_list)
+
+	restore_button = Button.new()
+	restore_button.text = "Restore"
+	restore_button.tooltip_text = "Restore the selected snapshot"
+	restore_button.pressed.connect(Callable(self, "_on_restore_pressed"))
+	snapshots_tab.add_child(restore_button)
+
+
+func _build_run_tab() -> void:
+	var run_tab := ScrollContainer.new()
+	run_tab.name = "Run"
+	run_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	run_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_container.add_child(run_tab)
+
+	run_report_label = Label.new()
+	run_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	run_report_label.text = "No run reports yet"
+	run_report_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	run_tab.add_child(run_report_label)
+
+
+func _build_raw_tab() -> void:
+	var raw_tab := ScrollContainer.new()
+	raw_tab.name = "Raw Mode"
+	raw_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	raw_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_container.add_child(raw_tab)
+
+	raw_detail_label = Label.new()
+	raw_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	raw_detail_label.text = "Raw mode is disabled by default"
+	raw_detail_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	raw_tab.add_child(raw_detail_label)
+
+
+func _add_row(parent: Control, name: String, value: String) -> Label:
 	var label := Label.new()
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.text = name + ": " + value
-	add_child(label)
+	parent.add_child(label)
 	return label
 
 
@@ -88,31 +219,131 @@ func _refresh_static_info() -> void:
 	if project_label == null:
 		return
 
+	var state := _console_state()
+	var status := state.get("status", {}) as Dictionary
+	var control_plane := status.get("control_plane", {}) as Dictionary
+	var raw_mode := status.get("raw_mode", state.get("raw_mode", {})) as Dictionary
+	var project := status.get("project", {}) as Dictionary
+	var godot_version := control_plane.get("godot_version", {}) as Dictionary
+	plane_label.text = "Control plane: v" + str(control_plane.get("schema_version", "")) + " / bridge " + str(status.get("bridge_version", control_plane.get("bridge_version", ""))) + " / Godot " + str(godot_version.get("string", ""))
+	project_label.text = "Project: " + str(project.get("name", ""))
+	root_label.text = "Root: " + _shorten_path(str(project.get("root", "")))
+	security_label.text = "Safety: project-scoped, snapshots, visible queue, no model API keys"
+	raw_label.text = "Raw mode: " + ("ENABLED" if bool(raw_mode.get("enabled", false)) else "disabled") + " -> " + str(raw_mode.get("audit_path", ""))
+	var file_status := status.get("file", {}) as Dictionary
+	queue_label.text = "File queue: " + str(file_status.get("root", ""))
+	history_label.text = "History: " + str(status.get("history_count", 0)) + " entries -> " + str(status.get("history_path", ""))
+
+	pending_batches = (state.get("pending", []) as Array).duplicate(true)
+	snapshot_items = (state.get("snapshots", []) as Array).duplicate(true)
+	_populate_pending_list()
+	_populate_snapshot_list()
+	_populate_run_report(state)
+	_populate_raw_panel(state)
+
+	pending_label.text = "Pending: " + str(pending_batches.size()) + " batches -> " + str(status.get("pending_actions_path", ""))
+	var last_snapshot := status.get("last_snapshot", {}) as Dictionary
+	if last_snapshot.is_empty():
+		snapshot_label.text = "Snapshots: " + str(snapshot_items.size())
+	else:
+		snapshot_label.text = "Snapshots: " + str(snapshot_items.size()) + ", latest " + str(last_snapshot.get("snapshot_id", ""))
+	var run_report := state.get("last_run_report", status.get("last_run_report", {})) as Dictionary
+	if run_report.is_empty():
+		run_label.text = "Last run: none"
+	else:
+		run_label.text = "Last run: " + str(run_report.get("mode", "")) + " " + ("OK" if bool(run_report.get("ok", false)) else "FAILED") + " / errors " + str(run_report.get("error_count", 0)) + " / warnings " + str(run_report.get("warning_count", 0))
+
+
+func _console_state() -> Dictionary:
+	if control_bridge != null and control_bridge.has_method("console_state"):
+		var state = control_bridge.console_state()
+		if typeof(state) == TYPE_DICTIONARY:
+			return state as Dictionary
 	if control_bridge != null and control_bridge.has_method("bridge_status"):
-		var status: Dictionary = control_bridge.bridge_status()
-		var control_plane := status.get("control_plane", {}) as Dictionary
-		var raw_mode := status.get("raw_mode", {}) as Dictionary
-		var project := status.get("project", {}) as Dictionary
-		var godot_version := control_plane.get("godot_version", {}) as Dictionary
-		plane_label.text = "Control plane: v" + str(control_plane.get("schema_version", "")) + " / Godot " + str(godot_version.get("string", ""))
-		project_label.text = "Project: " + str(project.get("name", ""))
-		root_label.text = "Root: " + _shorten_path(str(project.get("root", "")))
-		security_label.text = "Safety: project-scoped, snapshots, no model API keys"
-		raw_label.text = "Raw mode: " + ("ENABLED" if bool(raw_mode.get("enabled", false)) else "disabled") + " -> " + str(raw_mode.get("audit_path", ""))
-		var file_status := status.get("file", {}) as Dictionary
-		queue_label.text = "File queue: " + str(file_status.get("root", ""))
-		history_label.text = "History: " + str(status.get("history_count", 0)) + " entries -> " + str(status.get("history_path", ""))
-		pending_label.text = "Pending: " + str(status.get("pending_action_count", 0)) + " batches -> " + str(status.get("pending_actions_path", ""))
-		var last_snapshot := status.get("last_snapshot", {}) as Dictionary
-		if last_snapshot.is_empty():
-			snapshot_label.text = "Snapshots: " + str(status.get("snapshot_count", 0))
-		else:
-			snapshot_label.text = "Snapshots: " + str(status.get("snapshot_count", 0)) + ", latest " + str(last_snapshot.get("snapshot_id", ""))
-		var run_report := status.get("last_run_report", {}) as Dictionary
-		if run_report.is_empty():
-			run_label.text = "Last run: none"
-		else:
-			run_label.text = "Last run: " + str(run_report.get("mode", "")) + " " + ("OK" if bool(run_report.get("ok", false)) else "FAILED") + " / errors " + str(run_report.get("error_count", 0)) + " / warnings " + str(run_report.get("warning_count", 0))
+		var status = control_bridge.bridge_status()
+		if typeof(status) == TYPE_DICTIONARY:
+			return {
+				"status": status
+			}
+	return {
+		"status": {}
+	}
+
+
+func _populate_pending_list() -> void:
+	if pending_list == null:
+		return
+	pending_list.clear()
+	for queued in pending_batches:
+		if typeof(queued) != TYPE_DICTIONARY:
+			continue
+		var item := queued as Dictionary
+		var index := pending_list.add_item(_format_pending_item(item))
+		pending_list.set_item_metadata(index, str(item.get("queue_id", "")))
+	var has_pending := pending_list.item_count > 0
+	apply_button.disabled = not has_pending
+	discard_button.disabled = not has_pending
+	pending_detail_label.text = "Queue: " + str(pending_list.item_count) + " pending batches"
+
+
+func _populate_snapshot_list() -> void:
+	if snapshot_list == null:
+		return
+	snapshot_list.clear()
+	for snapshot in snapshot_items:
+		if typeof(snapshot) != TYPE_DICTIONARY:
+			continue
+		var item := snapshot as Dictionary
+		var index := snapshot_list.add_item(_format_snapshot_item(item))
+		snapshot_list.set_item_metadata(index, str(item.get("snapshot_id", "")))
+	restore_button.disabled = snapshot_list.item_count == 0
+	snapshot_detail_label.text = "Snapshots: " + str(snapshot_list.item_count) + " available"
+
+
+func _populate_run_report(state: Dictionary) -> void:
+	if run_report_label == null:
+		return
+	var report := state.get("last_run_report", {}) as Dictionary
+	if report.is_empty():
+		run_report_label.text = "No run reports yet"
+		return
+	var errors := report.get("errors", []) as Array
+	var warnings := report.get("warnings", []) as Array
+	var lines: Array[String] = [
+		"Mode: " + str(report.get("mode", "")),
+		"Result: " + ("OK" if bool(report.get("ok", false)) else "FAILED"),
+		"Exit code: " + str(report.get("exit_code", "")),
+		"Duration: " + str(report.get("duration_ms", 0)) + " ms",
+		"Errors: " + str(errors.size()),
+		"Warnings: " + str(warnings.size())
+	]
+	if not errors.is_empty():
+		lines.append("")
+		lines.append("Errors:")
+		for item in errors:
+			lines.append("- " + str(item))
+	if not warnings.is_empty():
+		lines.append("")
+		lines.append("Warnings:")
+		for item in warnings:
+			lines.append("- " + str(item))
+	run_report_label.text = "\n".join(lines)
+
+
+func _populate_raw_panel(state: Dictionary) -> void:
+	if raw_detail_label == null:
+		return
+	var raw_mode := state.get("raw_mode", {}) as Dictionary
+	var audit := state.get("raw_audit", []) as Array
+	var lines: Array[String] = [
+		"State: " + ("ENABLED" if bool(raw_mode.get("enabled", false)) else "disabled"),
+		"Arbitrary scripts: " + ("yes" if bool(raw_mode.get("executes_arbitrary_code", false)) else "no"),
+		"Audit path: " + str(raw_mode.get("audit_path", "")),
+		"Audit entries: " + str(audit.size())
+	]
+	if bool(raw_mode.get("enabled", false)):
+		lines.append("Warning: raw mode should only be used for trusted local workflows.")
+	raw_detail_label.text = "\n".join(lines)
 
 
 func _on_request_handled(command: String, ok: bool, message: String, request_id: String) -> void:
@@ -149,6 +380,103 @@ func _on_request_observed(entry: Dictionary) -> void:
 	updated_label.text = "Updated: " + str(entry.get("updated_at", Time.get_datetime_string_from_system()))
 	result_label.add_theme_color_override("font_color", Color(0.45, 0.85, 0.55) if ok else Color(1.0, 0.45, 0.45))
 	raw_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.35) if mode == "raw" or command.begins_with("raw_") else Color(0.75, 0.82, 0.9))
+
+
+func _on_refresh_pressed() -> void:
+	_refresh_static_info()
+
+
+func _on_apply_pressed() -> void:
+	var queue_id := _selected_item_metadata(pending_list)
+	if queue_id.is_empty():
+		_set_console_message(false, "Select a pending batch first.")
+		return
+	_send_dock_command({
+		"command": "apply_queued_actions",
+		"queue_id": queue_id
+	})
+
+
+func _on_discard_pressed() -> void:
+	var queue_id := _selected_item_metadata(pending_list)
+	if queue_id.is_empty():
+		_set_console_message(false, "Select a pending batch first.")
+		return
+	_send_dock_command({
+		"command": "discard_queued_actions",
+		"queue_id": queue_id
+	})
+
+
+func _on_restore_pressed() -> void:
+	var snapshot_id := _selected_item_metadata(snapshot_list)
+	if snapshot_id.is_empty():
+		_set_console_message(false, "Select a snapshot first.")
+		return
+	_send_dock_command({
+		"command": "restore_snapshot",
+		"snapshot_id": snapshot_id
+	})
+
+
+func _send_dock_command(request: Dictionary) -> void:
+	if control_bridge == null or not control_bridge.has_method("handle_request"):
+		_set_console_message(false, "Control bridge is not available.")
+		return
+	var payload := request.duplicate(true)
+	payload["request_id"] = "dock_" + str(Time.get_unix_time_from_system()) + "_" + str(Time.get_ticks_msec())
+	payload["mode"] = "safe"
+	var emits_observed := control_bridge.has_signal("request_observed")
+	var response = control_bridge.handle_request(payload)
+	if typeof(response) == TYPE_DICTIONARY and not emits_observed:
+		var response_dict := response as Dictionary
+		_set_console_message(bool(response_dict.get("ok", false)), str(response_dict.get("message", "")))
+	_refresh_static_info()
+
+
+func _selected_item_metadata(list: ItemList) -> String:
+	if list == null or list.item_count == 0:
+		return ""
+	var selected := list.get_selected_items()
+	var index := int(selected[0]) if selected.size() > 0 else 0
+	return str(list.get_item_metadata(index))
+
+
+func _set_console_message(ok: bool, message: String) -> void:
+	if result_label == null:
+		return
+	result_label.text = "Result: " + ("OK" if ok else "FAILED") + (" - " + message if not message.is_empty() else "")
+	result_label.add_theme_color_override("font_color", Color(0.45, 0.85, 0.55) if ok else Color(1.0, 0.45, 0.45))
+
+
+func _format_pending_item(queued: Dictionary) -> String:
+	var queue_id := str(queued.get("queue_id", ""))
+	var summary := str(queued.get("summary", ""))
+	var preview := queued.get("preview", {}) as Dictionary
+	var invalid := int(preview.get("invalid", 0))
+	var first_target := ""
+	var actions := preview.get("actions", []) as Array
+	if not actions.is_empty() and typeof(actions[0]) == TYPE_DICTIONARY:
+		first_target = str((actions[0] as Dictionary).get("target", ""))
+	var text := queue_id + " - " + str(queued.get("action_count", 0)) + " actions"
+	if not summary.is_empty():
+		text += " - " + summary
+	if not first_target.is_empty():
+		text += " -> " + first_target
+	if invalid > 0:
+		text += " / invalid " + str(invalid)
+	return text
+
+
+func _format_snapshot_item(snapshot: Dictionary) -> String:
+	var text := str(snapshot.get("snapshot_id", ""))
+	var reason := str(snapshot.get("reason", ""))
+	if not reason.is_empty():
+		text += " - " + reason
+	var scene_path := str(snapshot.get("scene_path", ""))
+	if not scene_path.is_empty():
+		text += " -> " + scene_path
+	return text
 
 
 func _shorten_path(path: String) -> String:
