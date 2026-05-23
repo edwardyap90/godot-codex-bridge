@@ -75,7 +75,7 @@ text = "Key no"
 layout_mode = 0
 offset_left = 22.0
 offset_top = 88.0
-offset_right = 220.0
+offset_right = 340.0
 offset_bottom = 120.0
 theme_override_colors/font_color = Color(0.7, 0.92, 1, 1)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.7)
@@ -86,9 +86,9 @@ text = "Score 0"
 
 [node name="ObjectiveLabel" type="Label" parent="UI/HUD"]
 layout_mode = 0
-offset_left = 320.0
+offset_left = 360.0
 offset_top = 18.0
-offset_right = 640.0
+offset_right = 790.0
 offset_bottom = 54.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.92)
 theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.65)
@@ -139,7 +139,7 @@ offset_right = 448.0
 offset_bottom = 194.0
 theme_override_colors/font_color = Color(1, 1, 1, 0.82)
 theme_override_font_sizes/font_size = 20
-text = "A compact top-down action demo for Godot Codex Bridge.\nMove, shoot sentries, take the key, and open the gate."
+text = "An endless top-down dungeon demo for Godot Codex Bridge.\nTake each key, open the gate, and dive into harder depths."
 horizontal_alignment = 1
 autowrap_mode = 2
 
@@ -186,7 +186,7 @@ offset_right = 406.0
 offset_bottom = 88.0
 theme_override_colors/font_color = Color(1, 0.85, 0.28, 1)
 theme_override_font_sizes/font_size = 36
-text = "Gate Opened"
+text = "Depth Run Ended"
 horizontal_alignment = 1
 
 [node name="SummaryLabel" type="Label" parent="UI/ResultPanel/Panel"]
@@ -208,7 +208,7 @@ offset_top = 216.0
 offset_right = 316.0
 offset_bottom = 270.0
 theme_override_font_sizes/font_size = 22
-text = "Run Again"
+text = "Restart Run"
 
 [node name="PauseOverlay" type="Control" parent="UI"]
 visible = false

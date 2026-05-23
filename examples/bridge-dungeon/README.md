@@ -3,8 +3,8 @@
 A compact Godot 4 top-down action demo for Godot Codex Bridge.
 
 This example is intentionally small but complete: home screen, HUD, pause,
-win/lose flow, generated art, player movement, mouse/keyboard shooting, enemy
-chase behavior, a key pickup, and an exit gate.
+endless run flow, generated art, player movement, mouse/keyboard shooting,
+escalating enemy chase behavior, a key pickup, and a depth gate.
 
 ## Install The Bridge
 
@@ -36,4 +36,5 @@ tools/godot_bridge_send.sh play_main_scene
 
 ## Goal
 
-Find the key, survive the sentries, then reach the open gate.
+Find the key, survive the sentries, then reach the open gate to descend into
+the next harder depth. Score, time, and depth keep going until the player dies.

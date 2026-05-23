@@ -21,10 +21,17 @@ func _run() -> void:
 	passed = passed and scene.get_node_or_null("UI/HomePanel/Panel/StartButton") != null
 	passed = passed and FileAccess.file_exists("res://assets/generated/player.png")
 	passed = passed and FileAccess.file_exists("res://assets/generated/enemy.png")
-	if scene.has_method("_start_game"):
+	if scene.has_method("_start_game") and scene.has_method("_advance_depth"):
 		scene.call("_start_game")
 		await process_frame
+		passed = passed and int(scene.get("depth")) == 1
 		passed = passed and scene.get_node("World/EnemyLayer").get_child_count() >= 4
+		passed = passed and scene.get_node("World/PropLayer").get_node_or_null("DungeonKey") != null
+		scene.call("_advance_depth")
+		await process_frame
+		passed = passed and int(scene.get("depth")) == 2
+		passed = passed and str(scene.get("state")) == "playing"
+		passed = passed and scene.get_node("World/EnemyLayer").get_child_count() >= 5
 		passed = passed and scene.get_node("World/PropLayer").get_node_or_null("DungeonKey") != null
 	else:
 		passed = false

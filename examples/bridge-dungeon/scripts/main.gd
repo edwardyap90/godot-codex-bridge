@@ -7,13 +7,38 @@ const BulletScript = preload("res://scripts/bullet.gd")
 const VIEWPORT_SIZE := Vector2(960, 540)
 const LEVEL_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600, 960))
 const PLAYER_START := Vector2(160, 480)
-const DOOR_POSITION := Vector2(1450, 480)
-const KEY_POSITION := Vector2(820, 740)
-const ENEMY_STARTS := [
+const KEY_SCORE := 250
+const FLOOR_CLEAR_SCORE := 500
+const DEPTH_SCORE_STEP := 100
+const HEALTH_RESTORE_PER_DEPTH := 1
+const BASE_ENEMY_COUNT := 4
+const MAX_ENEMY_COUNT := 12
+const MAX_ENEMY_DIFFICULTY := 8
+const DOOR_POSITIONS := [
+	Vector2(1450, 480),
+	Vector2(1440, 180),
+	Vector2(1260, 780),
+	Vector2(760, 150),
+]
+const KEY_POSITIONS := [
+	Vector2(820, 740),
+	Vector2(1350, 240),
+	Vector2(500, 760),
+	Vector2(1030, 130),
+]
+const ENEMY_SPAWN_POOL := [
 	Vector2(520, 220),
 	Vector2(980, 280),
 	Vector2(700, 620),
 	Vector2(1220, 720),
+	Vector2(1400, 210),
+	Vector2(260, 760),
+	Vector2(780, 150),
+	Vector2(1040, 800),
+	Vector2(1320, 540),
+	Vector2(430, 760),
+	Vector2(1470, 780),
+	Vector2(760, 430),
 ]
 
 @onready var world: Node2D = $World
@@ -51,6 +76,9 @@ var score := 0
 var shoot_cooldown := 0.0
 var player_hit_cooldown := 0.0
 var elapsed_time := 0.0
+var depth := 1
+var current_key_position = KEY_POSITIONS[0]
+var current_door_position = DOOR_POSITIONS[0]
 
 
 func _ready() -> void:
@@ -180,25 +208,25 @@ func _build_walls() -> void:
 
 func _build_props() -> void:
 	for child in prop_layer.get_children():
-		child.queue_free()
+		child.free()
 	key_sprite = Sprite2D.new()
 	key_sprite.name = "DungeonKey"
 	key_sprite.texture = textures["key"]
-	key_sprite.position = KEY_POSITION
+	key_sprite.position = current_key_position
 	key_sprite.z_index = 12
 	prop_layer.add_child(key_sprite)
 
 	door_sprite = Sprite2D.new()
 	door_sprite.name = "ExitDoor"
 	door_sprite.texture = textures["door_closed"]
-	door_sprite.position = DOOR_POSITION
+	door_sprite.position = current_door_position
 	door_sprite.z_index = 9
 	prop_layer.add_child(door_sprite)
 
 	rune_sprite = Sprite2D.new()
 	rune_sprite.name = "GoalRune"
 	rune_sprite.texture = textures["rune"]
-	rune_sprite.position = DOOR_POSITION + Vector2(0, 70)
+	rune_sprite.position = current_door_position + Vector2(0, 70)
 	rune_sprite.z_index = 7
 	prop_layer.add_child(rune_sprite)
 
@@ -207,7 +235,9 @@ func _show_home() -> void:
 	state = "home"
 	has_key = false
 	score = 0
+	depth = 1
 	elapsed_time = 0.0
+	_set_depth_positions()
 	_clear_runtime_nodes()
 	_build_props()
 	player.reset(PLAYER_START)
@@ -223,9 +253,11 @@ func _start_game() -> void:
 	state = "playing"
 	has_key = false
 	score = 0
+	depth = 1
 	shoot_cooldown = 0.0
 	player_hit_cooldown = 0.0
 	elapsed_time = 0.0
+	_set_depth_positions()
 	_clear_runtime_nodes()
 	_build_props()
 	_spawn_enemies()
@@ -257,21 +289,15 @@ func _resume_game() -> void:
 
 
 func _win_game() -> void:
-	state = "won"
-	player.set_active(false)
-	pause_button.visible = false
-	result_title.text = "Gate Opened"
-	result_summary.text = "You escaped with the bridge key.\nScore: " + str(score) + "  Time: " + _format_time(elapsed_time)
-	result_panel.visible = true
-	pause_overlay.visible = false
+	_advance_depth()
 
 
 func _game_over() -> void:
 	state = "game_over"
 	player.set_active(false)
 	pause_button.visible = false
-	result_title.text = "Dungeon Lost"
-	result_summary.text = "The sentries caught you.\nScore: " + str(score) + "  Time: " + _format_time(elapsed_time)
+	result_title.text = "Depth Run Ended"
+	result_summary.text = "The sentries stopped you at depth " + str(depth) + ".\nScore: " + str(score) + "  Time: " + _format_time(elapsed_time)
 	result_panel.visible = true
 	pause_overlay.visible = false
 
@@ -333,21 +359,53 @@ func _update_pickups() -> void:
 		has_key = true
 		key_sprite.visible = false
 		door_sprite.texture = textures["door_open"]
-		score += 250
+		score += KEY_SCORE
 	if has_key and door_sprite != null and player.position.distance_to(door_sprite.position) <= 58.0:
-		score += 500
 		_win_game()
 
 
+func _set_depth_positions() -> void:
+	current_key_position = KEY_POSITIONS[(depth - 1) % KEY_POSITIONS.size()]
+	current_door_position = DOOR_POSITIONS[(depth - 1) % DOOR_POSITIONS.size()]
+
+
+func _advance_depth() -> void:
+	if state != "playing":
+		return
+	score += FLOOR_CLEAR_SCORE + depth * DEPTH_SCORE_STEP
+	depth += 1
+	has_key = false
+	shoot_cooldown = 0.0
+	player_hit_cooldown = 0.0
+	_clear_runtime_nodes()
+	_set_depth_positions()
+	_build_props()
+	_spawn_enemies()
+	_restore_player_for_next_depth()
+	_update_hud()
+
+
+func _restore_player_for_next_depth() -> void:
+	player.position = PLAYER_START
+	player.alive = true
+	player.active = true
+	player.visible = true
+	player.health = mini(player.health + HEALTH_RESTORE_PER_DEPTH, player.max_health)
+	player.health_changed.emit(player.health, player.max_health)
+
+
 func _spawn_enemies() -> void:
-	for index in range(ENEMY_STARTS.size()):
+	var enemy_count := mini(BASE_ENEMY_COUNT + depth - 1, MAX_ENEMY_COUNT)
+	for index in range(enemy_count):
 		var enemy = EnemyScript.new()
 		enemy.name = "Sentry" + str(index + 1)
 		var sprite := Sprite2D.new()
 		sprite.name = "Sprite2D"
 		enemy.add_child(sprite)
 		enemy_layer.add_child(enemy)
-		enemy.configure(textures["enemy"], ENEMY_STARTS[index], index % 3)
+		var spawn_index := (index + depth - 1) % ENEMY_SPAWN_POOL.size()
+		var difficulty := mini(depth - 1 + (index % 3), MAX_ENEMY_DIFFICULTY)
+		enemy.configure(textures["enemy"], ENEMY_SPAWN_POOL[spawn_index], difficulty)
 		enemy.defeated.connect(_on_enemy_defeated)
 
 
@@ -383,13 +441,13 @@ func _update_hud() -> void:
 		return
 	health_label.text = "HP " + str(player.health) + "/" + str(player.max_health)
 	key_label.text = "Key " + ("yes" if has_key else "no")
-	score_label.text = "Score " + str(score)
+	score_label.text = "Score " + str(score) + "  Depth " + str(depth)
 	if state == "home":
-		objective_label.text = "Enter the dungeon"
+		objective_label.text = "Enter the endless dungeon"
 	elif has_key:
-		objective_label.text = "Reach the open gate"
+		objective_label.text = "Depth " + str(depth) + ": reach the open gate"
 	else:
-		objective_label.text = "Find the key"
+		objective_label.text = "Depth " + str(depth) + ": find the key"
 
 
 func _animate_home(delta: float) -> void:
