@@ -57,10 +57,12 @@ Use these helper commands when starting a task:
 ```bash
 tools/godot_bridge_send.sh doctor --deep
 tools/godot_bridge_send.sh doctor --project
+tools/godot_bridge_send.sh doctor --queue
 tools/godot_bridge_send.sh capabilities
 tools/godot_bridge_send.sh schema
 tools/godot_bridge_send.sh timeline
 tools/godot_bridge_send.sh queue-summary
+tools/godot_bridge_send.sh play-status
 tools/godot_bridge_send.sh raw-status
 ```
 
@@ -72,6 +74,10 @@ For multi-project work, run `doctor --project` before editing. It prints the
 detected project root, helper path, queue status, project identity, and raw mode
 state so a copied helper or wrong working directory is visible before any
 changes are applied.
+
+If a request times out, run `doctor --queue` and `last-response` before sending
+another edit. If stale inbox/outbox files are blocking a project-local queue,
+use `clean-queue` after reviewing the diagnostics.
 
 ## Visible Review in Godot
 

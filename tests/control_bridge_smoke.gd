@@ -557,6 +557,9 @@ func _init() -> void:
 	var stop_result: Dictionary = bridge.handle_request({
 		"command": "stop_playing_scene"
 	})
+	var last_run_result: Dictionary = bridge.handle_request({
+		"command": "get_last_run_report"
+	})
 	var history_result: Dictionary = bridge.handle_request({
 		"command": "get_command_history"
 	})
@@ -625,6 +628,11 @@ func _init() -> void:
 	var history_entries := history_data.get("history", []) as Array
 	var timeline_data := timeline_result.get("data", {}) as Dictionary
 	var timeline_entries := timeline_data.get("timeline", []) as Array
+	var play_main_data := play_main_result.get("data", {}) as Dictionary
+	var play_main_report := play_main_data.get("report", {}) as Dictionary
+	var last_run_data := last_run_result.get("data", {}) as Dictionary
+	var last_run_report := last_run_data.get("report", {}) as Dictionary
+	var run_reports := last_run_data.get("reports", []) as Array
 
 	var passed: bool = bool(ping_result.get("ok", false))
 	passed = passed and int(ping_result.get("schema_version", 0)) == 2
@@ -640,7 +648,7 @@ func _init() -> void:
 	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
 	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
 	passed = passed and bool(command_schema_result.get("ok", false))
-	passed = passed and str(command_schema.get("bridge_version", "")) == "0.5.0"
+	passed = passed and str(command_schema.get("bridge_version", "")) == "0.5.1"
 	passed = passed and command_schema_entries.size() > 20
 	passed = passed and bool(raw_status_result.get("ok", false))
 	passed = passed and not bool(raw_status.get("enabled", true))
@@ -745,6 +753,10 @@ func _init() -> void:
 	passed = passed and bool(play_status_result.get("ok", false))
 	passed = passed and bool(play_main_result.get("ok", false))
 	passed = passed and bool(stop_result.get("ok", false))
+	passed = passed and bool(last_run_result.get("ok", false))
+	passed = passed and str(play_main_report.get("mode", "")) == "play_main_scene"
+	passed = passed and str(last_run_report.get("mode", "")) == "stop_playing_scene"
+	passed = passed and run_reports.size() >= 2
 	passed = passed and bool(history_result.get("ok", false))
 	passed = passed and bool(dry_run_preview.get("dry_run", false))
 	passed = passed and int(executor_result.get("applied", 0)) == 1

@@ -94,6 +94,8 @@ schema at `docs/schema/commands.schema.json`.
 ## Visible Console Commands
 
 The Godot dock now shows Overview, Pending, Snapshots, Run, and Raw Mode tabs.
+The Run tab includes play status and a `Stop Game` button, and play/stop
+commands are recorded in the run report timeline.
 The pending queue and snapshot lists can be acted on from the editor UI:
 
 ```json
@@ -101,6 +103,19 @@ The pending queue and snapshot lists can be acted on from the editor UI:
 {"command":"apply_queued_actions","queue_id":"queue_..."}
 {"command":"discard_queued_actions","queue_id":"queue_..."}
 {"command":"restore_snapshot","snapshot_id":"snapshot_..."}
+{"command":"get_play_status"}
+{"command":"stop_playing_scene"}
+```
+
+## Queue Diagnostics
+
+When the file queue looks stuck, use the CLI diagnostics before retrying a
+large edit:
+
+```bash
+tools/godot_bridge_send.sh doctor --queue
+tools/godot_bridge_send.sh last-response
+tools/godot_bridge_send.sh clean-queue
 ```
 
 ## Project Surface Commands

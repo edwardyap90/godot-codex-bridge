@@ -92,6 +92,7 @@ func _process_request_file(file_name: String) -> void:
 		return
 
 	var text := file.get_as_text()
+	file.close()
 	var parsed = JSON.parse_string(text)
 	var response: Dictionary
 	if typeof(parsed) == TYPE_DICTIONARY:

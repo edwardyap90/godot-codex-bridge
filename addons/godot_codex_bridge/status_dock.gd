@@ -19,6 +19,7 @@ var queue_label: Label
 var history_label: Label
 var pending_label: Label
 var snapshot_label: Label
+var play_label: Label
 var run_label: Label
 var command_label: Label
 var result_label: Label
@@ -34,6 +35,8 @@ var discard_button: Button
 var snapshot_list: ItemList
 var snapshot_detail_label: Label
 var restore_button: Button
+var stop_button: Button
+var run_play_label: Label
 var run_report_label: Label
 var raw_detail_label: Label
 
@@ -116,6 +119,7 @@ func _build_overview_tab() -> void:
 	history_label = _add_row(body, "History", "")
 	pending_label = _add_row(body, "Pending", "")
 	snapshot_label = _add_row(body, "Snapshots", "")
+	play_label = _add_row(body, "Play", "")
 	run_label = _add_row(body, "Last run", "")
 	command_label = _add_row(body, "Last command", "Waiting for Codex")
 	result_label = _add_row(body, "Result", "")
@@ -185,11 +189,28 @@ func _build_run_tab() -> void:
 	run_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tab_container.add_child(run_tab)
 
+	var body := VBoxContainer.new()
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	run_tab.add_child(body)
+
+	run_play_label = _add_row(body, "Play", "not running")
+
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(row)
+
+	stop_button = Button.new()
+	stop_button.text = "Stop Game"
+	stop_button.tooltip_text = "Stop the running Godot play session"
+	stop_button.pressed.connect(Callable(self, "_on_stop_pressed"))
+	row.add_child(stop_button)
+
 	run_report_label = Label.new()
 	run_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	run_report_label.text = "No run reports yet"
 	run_report_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	run_tab.add_child(run_report_label)
+	body.add_child(run_report_label)
 
 
 func _build_raw_tab() -> void:
@@ -236,6 +257,9 @@ func _refresh_static_info() -> void:
 
 	pending_batches = (state.get("pending", []) as Array).duplicate(true)
 	snapshot_items = (state.get("snapshots", []) as Array).duplicate(true)
+	var play := state.get("play", status.get("play", {})) as Dictionary
+	var is_playing := bool(play.get("is_playing", false))
+	play_label.text = "Play: " + ("running" if is_playing else "stopped") + " / stop " + ("available" if bool(play.get("can_stop", false)) else "unavailable")
 	_populate_pending_list()
 	_populate_snapshot_list()
 	_populate_run_report(state)
@@ -303,6 +327,13 @@ func _populate_snapshot_list() -> void:
 func _populate_run_report(state: Dictionary) -> void:
 	if run_report_label == null:
 		return
+	var status := state.get("status", {}) as Dictionary
+	var play := state.get("play", status.get("play", {})) as Dictionary
+	var is_playing := bool(play.get("is_playing", false))
+	if run_play_label != null:
+		run_play_label.text = "Play: " + ("running" if is_playing else "stopped")
+	if stop_button != null:
+		stop_button.disabled = not bool(play.get("can_stop", false))
 	var report := state.get("last_run_report", {}) as Dictionary
 	if report.is_empty():
 		run_report_label.text = "No run reports yet"
@@ -416,6 +447,12 @@ func _on_restore_pressed() -> void:
 	_send_dock_command({
 		"command": "restore_snapshot",
 		"snapshot_id": snapshot_id
+	})
+
+
+func _on_stop_pressed() -> void:
+	_send_dock_command({
+		"command": "stop_playing_scene"
 	})
 
 

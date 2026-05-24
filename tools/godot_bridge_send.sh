@@ -11,12 +11,16 @@ Usage:
   tools/godot_bridge_send.sh timeline
   tools/godot_bridge_send.sh snapshots
   tools/godot_bridge_send.sh queue-summary
+  tools/godot_bridge_send.sh play-status
+  tools/godot_bridge_send.sh stop
+  tools/godot_bridge_send.sh last-response
+  tools/godot_bridge_send.sh clean-queue
   tools/godot_bridge_send.sh schema
   tools/godot_bridge_send.sh validate-json '{"command":"ping"}'
   tools/godot_bridge_send.sh raw-status
   tools/godot_bridge_send.sh get_editor_context
   tools/godot_bridge_send.sh status
-  tools/godot_bridge_send.sh doctor [--deep|--project]
+  tools/godot_bridge_send.sh doctor [--deep|--project|--queue]
   tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"}'
 
 Environment:
@@ -70,6 +74,67 @@ json_file_count() {
     return
   fi
   find "$dir" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l | tr -d ' '
+}
+
+queue_file_count() {
+  local dir="$1"
+  if [[ ! -d "$dir" ]]; then
+    printf '0\n'
+    return
+  fi
+  find "$dir" -maxdepth 1 -type f \( -name '*.json' -o -name '*.json.tmp' -o -name '*.tmp' \) 2>/dev/null | wc -l | tr -d ' '
+}
+
+print_queue_diagnostics() {
+  local bridge_root="$1"
+  local inbox="$bridge_root/inbox"
+  local outbox="$bridge_root/outbox"
+
+  echo "Queue diagnostics:"
+  echo "  Inbox:  $inbox ($(queue_file_count "$inbox") files)"
+  echo "  Outbox: $outbox ($(queue_file_count "$outbox") files)"
+  if [[ -d "$inbox" ]]; then
+    find "$inbox" -maxdepth 1 -type f \( -name '*.json' -o -name '*.json.tmp' -o -name '*.tmp' \) -print 2>/dev/null | sort | head -10 | sed 's/^/  inbox file: /'
+  fi
+  if [[ -d "$outbox" ]]; then
+    find "$outbox" -maxdepth 1 -type f \( -name '*.json' -o -name '*.json.tmp' -o -name '*.tmp' \) -print 2>/dev/null | sort | head -10 | sed 's/^/  outbox file: /'
+  fi
+  if [[ -f "$bridge_root/history.jsonl" ]]; then
+    echo "  Latest history:"
+    tail -n 1 "$bridge_root/history.jsonl" | sed 's/^/    /'
+  else
+    echo "  Latest history: none"
+  fi
+}
+
+print_last_response() {
+  local bridge_root="$1"
+  local latest=""
+  latest="$(ls -t "$bridge_root/outbox"/*.json 2>/dev/null | head -n 1 || true)"
+  if [[ -n "$latest" ]]; then
+    echo "Latest pending outbox response: $latest"
+    cat "$latest"
+    return 0
+  fi
+
+  if [[ -s "$bridge_root/history.jsonl" ]]; then
+    echo "Latest handled request from history:"
+    tail -n 1 "$bridge_root/history.jsonl"
+    return 0
+  fi
+
+  echo "No pending outbox response or history entry found."
+}
+
+clean_queue() {
+  local bridge_root="$1"
+  local removed=0
+  mkdir -p "$bridge_root/inbox" "$bridge_root/outbox"
+  while IFS= read -r file; do
+    rm -f "$file"
+    removed=$((removed + 1))
+  done < <(find "$bridge_root/inbox" "$bridge_root/outbox" -maxdepth 1 -type f \( -name '*.json' -o -name '*.json.tmp' -o -name '*.tmp' \) -print 2>/dev/null)
+  echo "Removed $removed queue file(s)."
 }
 
 find_godot_bin() {
@@ -224,8 +289,19 @@ send_request() {
   local deadline=$((SECONDS + timeout_sec))
   while [[ ! -f "$outbox_file" ]]; do
     if (( SECONDS >= deadline )); then
-      rm -f "$inbox_tmp" "$inbox_file"
+      sleep 0.2
+      if [[ -f "$outbox_file" ]]; then
+        break
+      fi
       echo "Timed out waiting for Godot file bridge response: $outbox_file" >&2
+      if [[ -f "$inbox_file" ]]; then
+        echo "Request is still in inbox; Godot is probably closed or the plugin is not polling." >&2
+      else
+        echo "Request was consumed, but no matching response file appeared before the timeout." >&2
+      fi
+      print_queue_diagnostics "$bridge_root" >&2
+      rm -f "$inbox_tmp" "$inbox_file"
+      echo "Helpful commands: tools/godot_bridge_send.sh doctor --queue | tools/godot_bridge_send.sh last-response | tools/godot_bridge_send.sh clean-queue" >&2
       return 1
     fi
     sleep 0.1
@@ -333,6 +409,29 @@ run_doctor() {
   return 0
 }
 
+run_queue_doctor() {
+  local project_root="$1"
+  local client_cwd="$2"
+  local bridge_root="$3"
+
+  echo "Godot Codex Bridge queue doctor"
+  echo
+  print_project_status "$project_root" "$client_cwd" "$bridge_root"
+  echo
+  print_queue_diagnostics "$bridge_root"
+  echo
+  echo "Short ping:"
+  local previous_timeout="$timeout_sec"
+  timeout_sec="${CODEX_GODOT_BRIDGE_TIMEOUT:-2}"
+  if send_request "$project_root" "$client_cwd" "$bridge_root" "command" "ping"; then
+    echo
+    echo "OK   bridge responded"
+  else
+    echo "WARN bridge did not respond during queue doctor."
+  fi
+  timeout_sec="$previous_timeout"
+}
+
 client_cwd="$(pwd)"
 project_root="$(find_project_root "$client_cwd")"
 bridge_root="$(resolve_bridge_root "$project_root")"
@@ -366,6 +465,18 @@ case "${1:-}" in
   queue-summary)
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_queue_summary"
     ;;
+  play-status)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_play_status"
+    ;;
+  stop)
+    send_request "$project_root" "$client_cwd" "$bridge_root" "command" "stop_playing_scene"
+    ;;
+  last-response)
+    print_last_response "$bridge_root"
+    ;;
+  clean-queue)
+    clean_queue "$bridge_root"
+    ;;
   schema)
     send_request "$project_root" "$client_cwd" "$bridge_root" "command" "get_command_schema"
     ;;
@@ -384,11 +495,15 @@ case "${1:-}" in
       usage
       exit 2
     fi
-    if [[ $# -eq 2 && "${2:-}" != "--deep" && "${2:-}" != "--project" ]]; then
+    if [[ $# -eq 2 && "${2:-}" != "--deep" && "${2:-}" != "--project" && "${2:-}" != "--queue" ]]; then
       usage
       exit 2
     fi
-    run_doctor "$project_root" "$client_cwd" "$bridge_root" "$([[ "${2:-}" == "--deep" ]] && echo true || echo false)" "$([[ "${2:-}" == "--project" ]] && echo true || echo false)"
+    if [[ "${2:-}" == "--queue" ]]; then
+      run_queue_doctor "$project_root" "$client_cwd" "$bridge_root"
+    else
+      run_doctor "$project_root" "$client_cwd" "$bridge_root" "$([[ "${2:-}" == "--deep" ]] && echo true || echo false)" "$([[ "${2:-}" == "--project" ]] && echo true || echo false)"
+    fi
     ;;
   --json)
     if [[ $# -ne 2 ]]; then

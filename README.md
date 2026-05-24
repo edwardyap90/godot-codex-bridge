@@ -132,10 +132,15 @@ When scene actions are applied, the bridge response includes `visual_feedback`. 
 - `status`: prints the detected project, queue paths, pending queue counts, and the bridge status response.
 - `doctor`: checks the addon files, plugin setting, Python, Godot executable, queue directories, and bridge ping.
 - `doctor --deep`: also prints Control Plane v2 capabilities and raw mode status.
+- `doctor --queue`: diagnoses inbox/outbox files, latest history, and short bridge ping behavior.
 - `capabilities`: prints `list_capabilities_v2`.
 - `timeline`: prints the command timeline.
 - `snapshots`: prints known snapshots.
 - `queue-summary`: prints pending queue counts, action counts, and target summaries.
+- `play-status`: prints whether the editor is currently running a play session.
+- `stop`: stops the current Godot play session.
+- `last-response`: prints the newest pending outbox response, or the latest history entry when the outbox is empty.
+- `clean-queue`: removes stale inbox/outbox request and response files.
 - `schema`: prints the machine-readable command schema exposed by the open editor.
 - `validate-json`: validates a command JSON object before sending it.
 - `raw-status`: prints whether controlled Raw API mode is enabled and where audit logs are written.

@@ -11,6 +11,7 @@ class FakeBridge:
 	var applied_queue_id := ""
 	var discarded_queue_id := ""
 	var restored_snapshot_id := ""
+	var stopped := false
 	var pending := [
 		{
 			"queue_id": "queue_smoke",
@@ -38,10 +39,10 @@ class FakeBridge:
 	func console_state() -> Dictionary:
 		return {
 			"status": {
-				"bridge_version": "0.5.0",
+				"bridge_version": "0.5.1",
 				"control_plane": {
 					"schema_version": 2,
-					"bridge_version": "0.5.0",
+					"bridge_version": "0.5.1",
 					"godot_version": {
 						"string": "4.6.2"
 					}
@@ -49,6 +50,10 @@ class FakeBridge:
 				"project": {
 					"name": "Smoke",
 					"root": "/tmp/smoke"
+				},
+				"play": {
+					"is_playing": true,
+					"can_stop": true
 				},
 				"file": {
 					"root": "res://.godot/godot_codex_bridge"
@@ -60,6 +65,10 @@ class FakeBridge:
 			},
 			"pending": pending,
 			"snapshots": snapshots,
+			"play": {
+				"is_playing": true,
+				"can_stop": true
+			},
 			"last_run_report": {
 				"mode": "check_only",
 				"ok": true,
@@ -87,6 +96,8 @@ class FakeBridge:
 				pending.clear()
 			"restore_snapshot":
 				restored_snapshot_id = str(request.get("snapshot_id", ""))
+			"stop_playing_scene":
+				stopped = true
 		var entry := {
 			"command": command,
 			"ok": true,
@@ -135,11 +146,15 @@ func _init() -> void:
 	passed = passed and dock.snapshot_list.item_count == 1
 	passed = passed and not dock.apply_button.disabled
 	passed = passed and not dock.restore_button.disabled
+	passed = passed and dock.play_label.text.contains("running")
+	passed = passed and not dock.stop_button.disabled
 	dock._on_apply_pressed()
 	passed = passed and bridge.applied_queue_id == "queue_smoke"
 	passed = passed and dock.pending_list.item_count == 0
 	dock._on_restore_pressed()
 	passed = passed and bridge.restored_snapshot_id == "snapshot_smoke"
+	dock._on_stop_pressed()
+	passed = passed and bridge.stopped
 
 	dock.free()
 	bridge.free()

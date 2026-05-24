@@ -46,6 +46,7 @@ func _init() -> void:
 	request.close()
 
 	file_bridge.poll_once()
+	file_bridge.poll_once()
 
 	var response_path := outbox.path_join("smoke.json")
 	var response_text := ""
@@ -60,6 +61,7 @@ func _init() -> void:
 	passed = passed and str(response.get("request_id", "")) == "smoke"
 	passed = passed and not str(project.get("name", "")).is_empty()
 	passed = passed and not FileAccess.file_exists(request_path)
+	passed = passed and bridge.history.size() == 1
 
 	file_bridge.free()
 	bridge.free()

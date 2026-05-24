@@ -14,7 +14,7 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 const CONTROL_PLANE_SCHEMA_VERSION := 2
 const RAW_AUDIT_LIMIT := 100
-const BRIDGE_VERSION := "0.5.0"
+const BRIDGE_VERSION := "0.5.1"
 const LAYER_FAMILIES := {
 	"2d_physics": {
 		"prefix": "layer_names/2d_physics/layer_",
@@ -352,6 +352,7 @@ func bridge_status() -> Dictionary:
 		"raw_audit_path": _raw_audit_path(),
 		"last_run_report": _run_report_summary(last_run_report),
 		"run_reports_path": _run_reports_path(),
+		"play": _play_status(),
 		"tcp": {
 			"enabled": _tcp_bridge_enabled(),
 			"running": running,
@@ -375,6 +376,7 @@ func console_state() -> Dictionary:
 		"snapshots": snapshots.duplicate(true),
 		"run_reports": run_reports.duplicate(true),
 		"last_run_report": _run_report_summary(last_run_report),
+		"play": _play_status(),
 		"raw_mode": _raw_mode_status(),
 		"raw_audit": raw_audit_entries.duplicate(true)
 	}
@@ -1195,6 +1197,9 @@ func _request_summary(command: String, data: Dictionary) -> String:
 			return "Created " + str(data.get("path", ""))
 		"get_queue_summary":
 			return str(data.get("pending_count", 0)) + " pending batches / " + str(data.get("action_count", 0)) + " actions"
+		"play_main_scene", "play_current_scene", "play_custom_scene", "stop_playing_scene", "stop_playing":
+			var play := data.get("play", {}) as Dictionary
+			return "playing " + str(play.get("is_playing", false))
 		"select_node":
 			var selection := data.get("selection", []) as Array
 			return "Selected " + str(selection.size()) + " node(s)"
@@ -3259,8 +3264,11 @@ func _play_main_scene() -> Dictionary:
 		return _response(false, "play_main_scene is not available in this environment.")
 
 	editor_interface.play_main_scene()
+	var report := _play_command_report("play_main_scene", true, "Main scene started.")
+	_record_run_report(report)
 	return _response(true, "Main scene started.", {
-		"play": _play_status()
+		"play": report.get("play", {}),
+		"report": report
 	})
 
 
@@ -3269,8 +3277,11 @@ func _play_current_scene() -> Dictionary:
 		return _response(false, "play_current_scene is not available in this environment.")
 
 	editor_interface.play_current_scene()
+	var report := _play_command_report("play_current_scene", true, "Current scene started.")
+	_record_run_report(report)
 	return _response(true, "Current scene started.", {
-		"play": _play_status()
+		"play": report.get("play", {}),
+		"report": report
 	})
 
 
@@ -3285,9 +3296,13 @@ func _play_custom_scene(request: Dictionary) -> Dictionary:
 		return _response(false, "Scene does not exist: " + scene_path)
 
 	editor_interface.play_custom_scene(scene_path)
+	var report := _play_command_report("play_custom_scene", true, "Custom scene started.")
+	report["scene_path"] = scene_path
+	_record_run_report(report)
 	return _response(true, "Custom scene started.", {
 		"scene_path": scene_path,
-		"play": _play_status()
+		"play": report.get("play", {}),
+		"report": report
 	})
 
 
@@ -3296,9 +3311,30 @@ func _stop_playing_scene() -> Dictionary:
 		return _response(false, "stop_playing_scene is not available in this environment.")
 
 	editor_interface.stop_playing_scene()
+	var report := _play_command_report("stop_playing_scene", true, "Scene playback stopped.")
+	_record_run_report(report)
 	return _response(true, "Scene playback stopped.", {
-		"play": _play_status()
+		"play": report.get("play", {}),
+		"report": report
 	})
+
+
+func _play_command_report(mode: String, ok: bool, message: String) -> Dictionary:
+	return {
+		"mode": mode,
+		"ok": ok,
+		"exit_code": 0 if ok else 1,
+		"started_at": Time.get_datetime_string_from_system(),
+		"duration_ms": 0,
+		"executable": OS.get_executable_path(),
+		"arguments": [],
+		"errors": [],
+		"warnings": [],
+		"message": message,
+		"play": _play_status(),
+		"output": message,
+		"output_tail": message
+	}
 
 
 func _create_snapshot(actions: Array, reason: String) -> Dictionary:
