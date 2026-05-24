@@ -24,6 +24,12 @@ Requests are JSON objects with a `command` field. The shell helper adds `request
 {"command":"set_resource_property","path":"res://materials/player_gradient.tres","property":"offsets","value":{"type":"PackedFloat32Array","values":[0.0,1.0]}}
 {"command":"create_material","path":"res://materials/player_material.tres","material_type":"CanvasItemMaterial","properties":{"blend_mode":1},"replace":true}
 {"command":"create_theme","path":"res://ui/game_theme.tres","colors":{"Label/font_color":{"type":"Color","r":1,"g":1,"b":1,"a":1}},"font_sizes":{"Label/font_size":18},"replace":true}
+{"command":"create_design_system","root":"res://art","name":"My Game Art","style":"bright readable arcade UI","replace":true}
+{"command":"create_palette","path":"res://art/palettes/game_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}
+{"command":"create_ui_theme","path":"res://art/themes/game_theme.tres","palette_path":"res://art/palettes/game_palette.json","replace":true}
+{"command":"apply_ui_theme","node_path":"CanvasLayer/HUD","theme_path":"res://art/themes/game_theme.tres","recursive":true}
+{"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/game_palette.json","replace":true}
+{"command":"inspect_art_assets","root":"res://art","write_report":true}
 {"command":"get_animation_players"}
 {"command":"create_animation","node_path":"AnimationPlayer","animation_name":"idle","length":1.0}
 {"command":"add_animation_value_key","node_path":"AnimationPlayer","animation_name":"idle","target_path":"..","property":"position","time":0.5,"value":{"type":"Vector2","x":20,"y":0}}
@@ -93,7 +99,7 @@ schema at `docs/schema/commands.schema.json`.
 
 ## Visible Console Commands
 
-The Godot dock now shows Overview, Pending, Snapshots, Run, and Raw Mode tabs.
+The Godot dock now shows Overview, Pending, Snapshots, Run, Design, and Raw Mode tabs.
 The Run tab includes play status and a `Stop Game` button, and play/stop
 commands are recorded in the run report timeline.
 The pending queue and snapshot lists can be acted on from the editor UI:
@@ -145,6 +151,25 @@ Supported layer families are `2d_physics`, `2d_render`, `3d_physics`,
 {"command":"create_material","path":"res://materials/player_material.tres","material_type":"CanvasItemMaterial","properties":{"blend_mode":1},"replace":true}
 {"command":"create_theme","path":"res://ui/game_theme.tres","colors":{"Label/font_color":{"type":"Color","r":1,"g":1,"b":1,"a":1}},"constants":{"MarginContainer/margin_left":12},"font_sizes":{"Label/font_size":18},"replace":true}
 ```
+
+## Art Direction Kit Commands
+
+These commands let Codex set up a project-local art direction workspace without
+calling model APIs from the plugin.
+
+```json
+{"command":"get_design_status","root":"res://art"}
+{"command":"create_design_system","root":"res://art","name":"Dungeon Art","style":"clear top-down fantasy UI","replace":true}
+{"command":"create_palette","path":"res://art/palettes/dungeon_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}
+{"command":"create_ui_theme","path":"res://art/themes/dungeon_theme.tres","palette_path":"res://art/palettes/dungeon_palette.json","corner_radius":6,"font_size":18,"replace":true}
+{"command":"apply_ui_theme","node_path":"HUD","theme_path":"res://art/themes/dungeon_theme.tres","recursive":true}
+{"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/dungeon_palette.json","replace":true}
+{"command":"inspect_art_assets","root":"res://art","max_texture_size":2048,"write_report":true}
+```
+
+`create_material_pack` creates a reusable canvas-item tint shader plus
+`ShaderMaterial` resources from the palette. `inspect_art_assets` reports asset
+counts, import-sidecar gaps, naming issues, and oversized textures.
 
 ## Controlled Raw API
 

@@ -39,10 +39,10 @@ class FakeBridge:
 	func console_state() -> Dictionary:
 		return {
 			"status": {
-				"bridge_version": "0.5.1",
+				"bridge_version": "0.5.2",
 				"control_plane": {
 					"schema_version": 2,
-					"bridge_version": "0.5.1",
+					"bridge_version": "0.5.2",
 					"godot_version": {
 						"string": "4.6.2"
 					}
@@ -61,7 +61,27 @@ class FakeBridge:
 				"history_count": 1,
 				"history_path": "res://.godot/godot_codex_bridge/history.jsonl",
 				"pending_actions_path": "res://.godot/godot_codex_bridge/pending_actions.json",
-				"last_snapshot": snapshots[0]
+				"last_snapshot": snapshots[0],
+				"design": {
+					"root": "res://art",
+					"design_system_exists": true,
+					"palette_count": 1,
+					"theme_count": 1,
+					"material_count": 2,
+					"image_count": 3,
+					"audio_count": 0,
+					"font_count": 0,
+					"palettes": [
+						{
+							"path": "res://art/palettes/smoke_palette.json"
+						}
+					],
+					"themes": [
+						{
+							"path": "res://art/themes/smoke_theme.tres"
+						}
+					]
+				}
 			},
 			"pending": pending,
 			"snapshots": snapshots,
@@ -76,6 +96,26 @@ class FakeBridge:
 				"duration_ms": 10,
 				"errors": [],
 				"warnings": []
+			},
+			"design": {
+				"root": "res://art",
+				"design_system_exists": true,
+				"palette_count": 1,
+				"theme_count": 1,
+				"material_count": 2,
+				"image_count": 3,
+				"audio_count": 0,
+				"font_count": 0,
+				"palettes": [
+					{
+						"path": "res://art/palettes/smoke_palette.json"
+					}
+				],
+				"themes": [
+					{
+						"path": "res://art/themes/smoke_theme.tres"
+					}
+				]
 			},
 			"raw_mode": {
 				"enabled": false,
@@ -148,6 +188,8 @@ func _init() -> void:
 	passed = passed and not dock.restore_button.disabled
 	passed = passed and dock.play_label.text.contains("running")
 	passed = passed and not dock.stop_button.disabled
+	passed = passed and dock.design_label.text.contains("1 palettes")
+	passed = passed and dock.design_detail_label.text.contains("smoke_palette")
 	dock._on_apply_pressed()
 	passed = passed and bridge.applied_queue_id == "queue_smoke"
 	passed = passed and dock.pending_list.item_count == 0

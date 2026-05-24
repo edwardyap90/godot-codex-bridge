@@ -519,6 +519,72 @@ func _init() -> void:
 			"Label/font_size": 18
 		}
 	})
+	var design_root := "res://tmp_bridge_queue/art"
+	_remove_dir_recursive(design_root)
+	var design_system_result: Dictionary = bridge.handle_request({
+		"command": "create_design_system",
+		"root": design_root,
+		"name": "Smoke Art",
+		"style": "readable arcade UI",
+		"replace": true,
+		"palette": {
+			"background": "#101826",
+			"surface": "#22314a",
+			"primary": "#4aa3ff",
+			"accent": "#62d986",
+			"danger": "#ff6060",
+			"text": "#edf5ff"
+		}
+	})
+	var palette_path := design_root.path_join("palettes/smoke_palette.json")
+	var palette_result: Dictionary = bridge.handle_request({
+		"command": "create_palette",
+		"path": palette_path,
+		"name": "Smoke Palette",
+		"replace": true,
+		"colors": {
+			"background": "#101826",
+			"surface": "#22314a",
+			"primary": "#4aa3ff",
+			"accent": "#62d986",
+			"danger": "#ff6060",
+			"text": "#edf5ff"
+		}
+	})
+	var ui_theme_path := design_root.path_join("themes/smoke_theme.tres")
+	var ui_theme_result: Dictionary = bridge.handle_request({
+		"command": "create_ui_theme",
+		"path": ui_theme_path,
+		"name": "Smoke Theme",
+		"palette_path": palette_path,
+		"replace": true
+	})
+	var design_panel := Control.new()
+	design_panel.name = "DesignPanel"
+	scene_root.add_child(design_panel)
+	design_panel.owner = scene_root
+	var apply_ui_theme_result: Dictionary = bridge.handle_request({
+		"command": "apply_ui_theme",
+		"node_path": "DesignPanel",
+		"theme_path": ui_theme_path,
+		"recursive": true
+	})
+	var material_pack_result: Dictionary = bridge.handle_request({
+		"command": "create_material_pack",
+		"root": design_root.path_join("materials"),
+		"palette_path": palette_path,
+		"replace": true
+	})
+	var inspect_art_result: Dictionary = bridge.handle_request({
+		"command": "inspect_art_assets",
+		"root": design_root,
+		"write_report": true,
+		"max_count": 200
+	})
+	var design_status_result: Dictionary = bridge.handle_request({
+		"command": "get_design_status",
+		"root": design_root
+	})
 	ProjectSettings.set_setting("codex_bridge/raw_api_enabled", true)
 	var raw_classdb_result: Dictionary = bridge.handle_request({
 		"command": "raw_classdb_query",
@@ -610,6 +676,11 @@ func _init() -> void:
 	var resource_info := resource_info_data.get("resource", {}) as Dictionary
 	var resource_import_data := resource_import_result.get("data", {}) as Dictionary
 	var resource_import := resource_import_data.get("import", {}) as Dictionary
+	var material_pack_data := material_pack_result.get("data", {}) as Dictionary
+	var material_pack_paths := material_pack_data.get("paths", []) as Array
+	var inspect_art_data := inspect_art_result.get("data", {}) as Dictionary
+	var design_status_data := design_status_result.get("data", {}) as Dictionary
+	var design_status := design_status_data.get("design", {}) as Dictionary
 	var animation_players_data := animation_players_result.get("data", {}) as Dictionary
 	var animation_players := animation_players_data.get("players", []) as Array
 	var animation_info_data := animation_info_result.get("data", {}) as Dictionary
@@ -644,12 +715,15 @@ func _init() -> void:
 	passed = passed and bool(capabilities_result.get("ok", false))
 	passed = passed and (capabilities.get("inspector", []) as Array).has("get_inspector_properties")
 	passed = passed and (capabilities.get("animation", []) as Array).has("add_animation_value_key")
+	passed = passed and (capabilities.get("design", []) as Array).has("create_ui_theme")
 	passed = passed and bool(capabilities_v2_result.get("ok", false))
 	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
 	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
 	passed = passed and bool(command_schema_result.get("ok", false))
-	passed = passed and str(command_schema.get("bridge_version", "")) == "0.5.1"
+	passed = passed and str(command_schema.get("bridge_version", "")) == "0.5.2"
 	passed = passed and command_schema_entries.size() > 20
+	passed = passed and _schema_has_command(command_schema_entries, "create_design_system")
+	passed = passed and _schema_has_command(command_schema_entries, "apply_ui_theme")
 	passed = passed and bool(raw_status_result.get("ok", false))
 	passed = passed and not bool(raw_status.get("enabled", true))
 	passed = passed and not bool(raw_disabled_result.get("ok", true))
@@ -746,6 +820,24 @@ func _init() -> void:
 	passed = passed and bool(FileAccess.file_exists(material_path))
 	passed = passed and bool(create_theme_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(theme_path))
+	passed = passed and bool(design_system_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(design_root.path_join("design_system.json")))
+	passed = passed and bool(palette_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(palette_path))
+	passed = passed and bool(ui_theme_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(ui_theme_path))
+	passed = passed and bool(apply_ui_theme_result.get("ok", false))
+	passed = passed and design_panel.theme != null
+	passed = passed and bool(material_pack_result.get("ok", false))
+	passed = passed and material_pack_paths.size() >= 2
+	passed = passed and bool(FileAccess.file_exists(str(material_pack_data.get("shader_path", ""))))
+	passed = passed and bool(inspect_art_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(str(inspect_art_data.get("report_path", ""))))
+	passed = passed and bool(design_status_result.get("ok", false))
+	passed = passed and bool(design_status.get("design_system_exists", false))
+	passed = passed and int(design_status.get("palette_count", 0)) >= 1
+	passed = passed and int(design_status.get("theme_count", 0)) >= 1
+	passed = passed and int(design_status.get("material_count", 0)) >= 1
 	passed = passed and bool(raw_classdb_result.get("ok", false))
 	passed = passed and bool((raw_classdb_result.get("data", {}) as Dictionary).get("exists", false))
 	passed = passed and bool(raw_object_result.get("ok", false))
@@ -787,7 +879,7 @@ func _init() -> void:
 	_remove_file(resource_path)
 	_remove_file(material_path)
 	_remove_file(theme_path)
-	_remove_dir("res://tmp_bridge_queue")
+	_remove_dir_recursive("res://tmp_bridge_queue")
 	ProjectSettings.clear("codex_bridge/smoke_temp")
 	ProjectSettings.clear("codex_bridge/raw_api_enabled")
 	if ProjectSettings.has_setting("autoload/CodexSmokeAutoload"):
@@ -811,8 +903,35 @@ func _remove_dir(path: String) -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
 
+func _remove_dir_recursive(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	while true:
+		var name := dir.get_next()
+		if name.is_empty():
+			break
+		if name in [".", ".."]:
+			continue
+		var child_path := path.path_join(name)
+		if dir.current_is_dir():
+			_remove_dir_recursive(child_path)
+		else:
+			_remove_file(child_path)
+	dir.list_dir_end()
+	_remove_dir(path)
+
+
 func _autoload_list_has(items: Array, name: String) -> bool:
 	for item in items:
 		if typeof(item) == TYPE_DICTIONARY and str((item as Dictionary).get("name", "")) == name:
+			return true
+	return false
+
+
+func _schema_has_command(items: Array, command: String) -> bool:
+	for item in items:
+		if typeof(item) == TYPE_DICTIONARY and str((item as Dictionary).get("command", "")) == command:
 			return true
 	return false

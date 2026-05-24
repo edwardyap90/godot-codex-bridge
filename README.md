@@ -38,7 +38,7 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 - Optional TCP transport on `127.0.0.1`.
 - Control Plane v2 responses with `schema_version`, `ui_feedback`, `warnings`, and `changed_paths`.
 - Project isolation through `project_root` validation.
-- Godot dock console with Overview, Pending Queue, Snapshots, Run Reports, and Raw Mode tabs.
+- Godot dock console with Overview, Pending Queue, Snapshots, Run Reports, Design, and Raw Mode tabs.
 - Pending batches can be applied or discarded from the Godot dock; snapshots can be restored from the dock.
 - Command history in `.godot/godot_codex_bridge/history.jsonl`.
 - Command timeline through `get_command_timeline`.
@@ -51,6 +51,7 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 - Safe project-surface commands for autoloads, layer names, common project settings, and command schema discovery.
 - Extended safe scene actions for node rename, duplicate, remove, reparent, ordering, owner, groups, unique names, and metadata.
 - Resource creation, saving, property editing, material helpers, and theme helpers for `.tres` and `.res` assets.
+- Art Direction Kit commands for palettes, UI themes, tint material packs, and art asset reports.
 - Controlled Raw API mode for allowlisted Godot editor calls. It is disabled by default and never executes arbitrary scripts.
 
 ## Installation
@@ -191,6 +192,7 @@ tools/godot_bridge_send.sh play_main_scene
 - Project Settings: `get_project_settings`, `get_project_setting`, `set_project_setting`, `get_common_project_settings`, `set_common_project_settings`, `get_autoloads`, `add_autoload`, `remove_autoload`, `get_layer_names`, `set_layer_name`
 - Input Map: `get_input_actions`, `add_input_action`, `remove_input_action`
 - Resources: `get_resource_files`, `get_resource_info`, `get_resource_import_info`, `create_resource`, `set_resource_property`, `save_resource`, `create_material`, `create_theme`, `scan_resource_filesystem`, `reimport_resources`
+- Design and art direction: `get_design_status`, `create_design_system`, `create_palette`, `create_ui_theme`, `apply_ui_theme`, `create_material_pack`, `inspect_art_assets`
 - Animation: `get_animation_players`, `get_animation_player_info`, `create_animation`, `set_animation_properties`, `add_animation_value_key`
 - Validation: `run_check_only`, `run_project_headless`, `get_last_run_report`
 - Controlled Raw API: `get_raw_mode_status`, `raw_editor_call`, `raw_object_call`, `raw_classdb_query`, `raw_project_call`

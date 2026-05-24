@@ -12,7 +12,7 @@
 - 可选开启 `127.0.0.1` TCP 桥。
 - 新增 Control Plane v2：响应包含 `schema_version`、`ui_feedback`、`warnings`、`changed_paths`。
 - 通过 `project_root` 做项目隔离，避免多项目串用。
-- 右侧 Dock Console 有 Overview、Pending、Snapshots、Run、Raw Mode 分区。
+- 右侧 Dock Console 有 Overview、Pending、Snapshots、Run、Design、Raw Mode 分区。
 - 可以直接在 Godot Dock 里应用/丢弃待执行队列，也可以恢复快照。
 - 命令历史写入 `.godot/godot_codex_bridge/history.jsonl`。
 - 支持 `get_command_timeline` 查看命令时间线。
@@ -25,6 +25,7 @@
 - 新增安全项目命令：autoload、layer names、常用项目设置和命令 schema。
 - 扩展安全场景动作：重命名、复制、删除、reparent、排序、owner、分组、唯一名和 metadata。
 - 支持创建、保存、修改 `.tres` / `.res` 资源，并提供 material/theme helper。
+- 新增 Art Direction Kit：可创建设计系统、调色板、UI Theme、tint 材质包，并生成美术资源检查报告。
 - 新增受控 Raw API 模式，默认关闭，只允许白名单调用，不执行任意脚本。
 
 ## 安装
@@ -116,6 +117,12 @@ tools/godot_bridge_send.sh queue-summary
 tools/godot_bridge_send.sh --json '{"command":"get_autoloads"}'
 tools/godot_bridge_send.sh --json '{"command":"get_layer_names","family":"2d_physics"}'
 tools/godot_bridge_send.sh --json '{"command":"get_common_project_settings"}'
+tools/godot_bridge_send.sh --json '{"command":"get_design_status","root":"res://art"}'
+tools/godot_bridge_send.sh --json '{"command":"create_design_system","root":"res://art","name":"My Game Art","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_palette","path":"res://art/palettes/game_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_ui_theme","path":"res://art/themes/game_theme.tres","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"inspect_art_assets","root":"res://art","write_report":true}'
 ```
 
 Raw API 默认关闭。可信本地流程需要时可以设置 `codex_bridge/raw_api_enabled=true` 或 `CODEX_GODOT_RAW_API_ENABLED=1`。Raw 调用会写入 `.godot/godot_codex_bridge/raw_audit.jsonl`。

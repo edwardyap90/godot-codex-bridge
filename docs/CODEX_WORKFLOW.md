@@ -35,13 +35,14 @@ in Godot, enable the plugin if needed, and rerun the guard.
 
 ## After Bootstrap
 
-All gameplay files, scenes, resources, project settings, input actions, and
-editor actions should be sent through the bridge:
+All gameplay files, scenes, resources, art direction assets, project settings,
+input actions, and editor actions should be sent through the bridge:
 
 ```bash
 tools/godot_bridge_send.sh ping
 tools/godot_bridge_send.sh capabilities
 tools/godot_bridge_send.sh get_editor_context
+tools/godot_bridge_send.sh --json '{"command":"create_design_system","root":"res://art","name":"My Game Art","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"open_scene","path":"res://scenes/main.tscn"}'
 tools/godot_bridge_send.sh --json '{"command":"apply_actions","actions":[{"type":"add_node","parent_path":".","node_type":"Camera2D","name":"Camera2D"}]}'
 ```
@@ -81,7 +82,7 @@ use `clean-queue` after reviewing the diagnostics.
 
 ## Visible Review in Godot
 
-The Dock Console has tabs for Overview, Pending, Snapshots, Run, and Raw Mode.
+The Dock Console has tabs for Overview, Pending, Snapshots, Run, Design, and Raw Mode.
 Codex should queue visible editor changes when practical:
 
 ```bash
@@ -91,6 +92,21 @@ tools/godot_bridge_send.sh queue-summary
 
 The user can then apply or discard the batch in the Godot dock. Snapshot
 restore is also available from the dock.
+
+## Art Direction Workflow
+
+For UI and art-heavy tasks, start by creating or reading the design workspace:
+
+```bash
+tools/godot_bridge_send.sh --json '{"command":"get_design_status","root":"res://art"}'
+tools/godot_bridge_send.sh --json '{"command":"create_palette","path":"res://art/palettes/game_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_ui_theme","path":"res://art/themes/game_theme.tres","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"inspect_art_assets","root":"res://art","write_report":true}'
+```
+
+The Design tab shows palette/theme/material counts and recent art-direction
+resources, so the user can see visual-system work from inside Godot.
 
 ## Controlled Raw API
 

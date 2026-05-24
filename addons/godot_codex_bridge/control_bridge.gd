@@ -14,7 +14,11 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 const CONTROL_PLANE_SCHEMA_VERSION := 2
 const RAW_AUDIT_LIMIT := 100
-const BRIDGE_VERSION := "0.5.1"
+const BRIDGE_VERSION := "0.5.2"
+const DESIGN_IMAGE_EXTENSIONS := ["png", "jpg", "jpeg", "webp", "svg", "tga", "bmp", "exr", "hdr"]
+const DESIGN_AUDIO_EXTENSIONS := ["wav", "ogg", "mp3"]
+const DESIGN_FONT_EXTENSIONS := ["ttf", "otf", "woff", "woff2"]
+const DESIGN_RESOURCE_EXTENSIONS := ["tres", "res", "tscn", "scn", "material", "gdshader"]
 const LAYER_FAMILIES := {
 	"2d_physics": {
 		"prefix": "layer_names/2d_physics/layer_",
@@ -250,6 +254,20 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _create_material(request)
 		"create_theme":
 			return _create_theme(request)
+		"get_design_status":
+			return _get_design_status(request)
+		"create_design_system":
+			return _create_design_system(request)
+		"create_palette":
+			return _create_palette(request)
+		"create_ui_theme":
+			return _create_ui_theme(request)
+		"apply_ui_theme":
+			return _apply_ui_theme(request)
+		"create_material_pack":
+			return _create_material_pack(request)
+		"inspect_art_assets":
+			return _inspect_art_assets(request)
 		"scan_resource_filesystem":
 			return _scan_resource_filesystem(request)
 		"reimport_resources":
@@ -353,6 +371,7 @@ func bridge_status() -> Dictionary:
 		"last_run_report": _run_report_summary(last_run_report),
 		"run_reports_path": _run_reports_path(),
 		"play": _play_status(),
+		"design": _design_status({}),
 		"tcp": {
 			"enabled": _tcp_bridge_enabled(),
 			"running": running,
@@ -377,6 +396,7 @@ func console_state() -> Dictionary:
 		"run_reports": run_reports.duplicate(true),
 		"last_run_report": _run_report_summary(last_run_report),
 		"play": _play_status(),
+		"design": _design_status({}),
 		"raw_mode": _raw_mode_status(),
 		"raw_audit": raw_audit_entries.duplicate(true)
 	}
@@ -442,8 +462,24 @@ func _editor_capabilities() -> Dictionary:
 			"save_resource",
 			"create_material",
 			"create_theme",
+			"get_design_status",
+			"create_design_system",
+			"create_palette",
+			"create_ui_theme",
+			"apply_ui_theme",
+			"create_material_pack",
+			"inspect_art_assets",
 			"scan_resource_filesystem",
 			"reimport_resources"
+		],
+		"design": [
+			"get_design_status",
+			"create_design_system",
+			"create_palette",
+			"create_ui_theme",
+			"apply_ui_theme",
+			"create_material_pack",
+			"inspect_art_assets"
 		],
 		"animation": [
 			"get_animation_players",
@@ -481,7 +517,12 @@ func _editor_capabilities() -> Dictionary:
 		],
 		"resource_helpers": [
 			"create_material",
-			"create_theme"
+			"create_theme",
+			"create_design_system",
+			"create_palette",
+			"create_ui_theme",
+			"create_material_pack",
+			"inspect_art_assets"
 		],
 		"schema": [
 			"get_command_schema"
@@ -592,6 +633,13 @@ func _command_schema_entries() -> Array:
 		_command_schema_entry("create_resource", "resource", true, ["path", "resource_type"], ["replace", "properties"]),
 		_command_schema_entry("create_material", "resource", true, ["path"], ["material_type", "replace", "properties"]),
 		_command_schema_entry("create_theme", "resource", true, ["path"], ["replace", "colors", "constants", "font_sizes"]),
+		_command_schema_entry("get_design_status", "design", false, [], ["root"]),
+		_command_schema_entry("create_design_system", "design", true, [], ["root", "name", "style", "palette", "replace"]),
+		_command_schema_entry("create_palette", "design", true, [], ["path", "root", "name", "colors", "replace"]),
+		_command_schema_entry("create_ui_theme", "design", true, [], ["path", "palette_path", "palette", "colors", "replace"]),
+		_command_schema_entry("apply_ui_theme", "design", true, ["theme_path"], ["node_path", "recursive"]),
+		_command_schema_entry("create_material_pack", "design", true, [], ["root", "palette_path", "palette", "materials", "replace"]),
+		_command_schema_entry("inspect_art_assets", "design", true, [], ["root", "extensions", "max_count", "write_report"]),
 		_command_schema_entry("set_resource_property", "resource", true, ["path", "property", "value"], []),
 		_command_schema_entry("save_resource", "resource", true, ["path"], []),
 		_command_schema_entry("scan_resource_filesystem", "import", false, [], ["scan_sources"]),
@@ -1195,6 +1243,16 @@ func _request_summary(command: String, data: Dictionary) -> String:
 			return "Updated " + str((data.get("changes", []) as Array).size()) + " common project settings"
 		"create_material", "create_theme":
 			return "Created " + str(data.get("path", ""))
+		"create_design_system":
+			return "Created design system at " + str(data.get("root", ""))
+		"create_palette", "create_ui_theme":
+			return "Created " + str(data.get("path", ""))
+		"apply_ui_theme":
+			return "Applied theme to " + str(data.get("applied_count", 0)) + " Control node(s)"
+		"create_material_pack":
+			return "Created " + str((data.get("paths", []) as Array).size()) + " material resource(s)"
+		"inspect_art_assets":
+			return "Inspected " + str((data.get("files", []) as Array).size()) + " art asset(s)"
 		"get_queue_summary":
 			return str(data.get("pending_count", 0)) + " pending batches / " + str(data.get("action_count", 0)) + " actions"
 		"play_main_scene", "play_current_scene", "play_custom_scene", "stop_playing_scene", "stop_playing":
@@ -1264,6 +1322,9 @@ func _changed_paths_for_response(command: String, data: Dictionary) -> Array:
 				_append_unique_path(paths, str((item as Dictionary).get("path", "")))
 	if data.has("path"):
 		_append_unique_path(paths, str(data.get("path", "")))
+	if data.has("paths") and typeof(data.get("paths")) == TYPE_ARRAY:
+		for item in data.get("paths", []) as Array:
+			_append_unique_path(paths, str(item))
 	match command:
 		"set_project_setting", "set_common_project_settings", "add_autoload", "remove_autoload", "set_layer_name", "add_input_action", "remove_input_action":
 			_append_unique_path(paths, "res://project.godot")
@@ -1547,6 +1608,765 @@ func _create_theme(request: Dictionary) -> Dictionary:
 			"errors": errors
 		})
 	return _save_new_resource(theme, path, "Theme created.", "create_theme " + path)
+
+
+func _get_design_status(request: Dictionary) -> Dictionary:
+	return _response(true, "ok", {
+		"design": _design_status(request)
+	})
+
+
+func _create_design_system(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", request.get("path", "res://art"))))
+	if root.is_empty():
+		return _response(false, "Design root is invalid or protected.")
+
+	var name := str(request.get("name", ProjectSettings.get_setting("application/config/name", "Game Art"))).strip_edges()
+	if name.is_empty():
+		name = "Game Art"
+	var style := str(request.get("style", request.get("art_direction", "playful game UI"))).strip_edges()
+	var replace := bool(request.get("replace", false))
+	var system_path := root.path_join("design_system.json")
+	if FileAccess.file_exists(system_path) and not replace:
+		return _response(false, "Design system already exists: " + system_path)
+
+	var palette_entries := _design_palette_entries(request.get("palette", request.get("colors", {})))
+	var directories := [
+		root,
+		root.path_join("palettes"),
+		root.path_join("themes"),
+		root.path_join("materials"),
+		root.path_join("sprites"),
+		root.path_join("ui"),
+		root.path_join("references"),
+		root.path_join("reports")
+	]
+	var snapshot_actions: Array = [
+		{
+			"type": "write_file",
+			"path": system_path
+		}
+	]
+	for directory in directories:
+		snapshot_actions.append({
+			"type": "make_dir",
+			"path": str(directory)
+		})
+	var snapshot := _create_snapshot(snapshot_actions, "create_design_system " + root)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; design system was not created.", {
+			"snapshot": snapshot
+		})
+
+	for directory in directories:
+		var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(str(directory)))
+		if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+			return _response(false, "Failed to create design directory: " + error_string(dir_error), {
+				"directory": str(directory),
+				"snapshot": _snapshot_summary(snapshot)
+			})
+
+	var payload := {
+		"schema_version": 1,
+		"name": name,
+		"style": style,
+		"root": root,
+		"created_at": Time.get_datetime_string_from_system(),
+		"palette": _design_palette_payload(palette_entries),
+		"directories": directories,
+		"notes": [
+			"Keep generated art, themes, palettes, and reports under this project-local root.",
+			"Use bridge design commands so Godot can show snapshots, changed files, and UI feedback."
+		]
+	}
+	var write_error := _write_json_file(system_path, payload)
+	if write_error != OK:
+		return _response(false, "Failed to write design system: " + error_string(write_error), {
+			"path": system_path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+
+	_refresh_editor_filesystem()
+	return _response(true, "Design system created.", {
+		"root": root,
+		"path": system_path,
+		"palette": payload.get("palette", []),
+		"directories": directories,
+		"design": _design_status({
+			"root": root
+		}),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [system_path])
+
+
+func _create_palette(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Palette root is invalid or protected.")
+	var name := str(request.get("name", "game_palette")).strip_edges()
+	if name.is_empty():
+		name = "game_palette"
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("palettes").path_join(_safe_design_slug(name, "palette") + ".json"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Palette path is invalid or protected.")
+	if path.get_extension().to_lower() != "json":
+		return _response(false, "Palette path must end with .json.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Palette already exists: " + path)
+
+	var palette_entries := _design_palette_entries(request.get("colors", request.get("palette", {})))
+	var payload := {
+		"schema_version": 1,
+		"name": name,
+		"created_at": Time.get_datetime_string_from_system(),
+		"colors": _design_palette_payload(palette_entries)
+	}
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], "create_palette " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; palette was not saved.", {
+			"snapshot": snapshot
+		})
+
+	var write_error := _write_json_file(path, payload)
+	if write_error != OK:
+		return _response(false, "Failed to write palette: " + error_string(write_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Palette created.", {
+		"path": path,
+		"palette": payload.get("colors", []),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _create_ui_theme(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "UI theme root is invalid or protected.")
+	var name := str(request.get("name", "game_theme")).strip_edges()
+	if name.is_empty():
+		name = "game_theme"
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("themes").path_join(_safe_design_slug(name, "theme") + ".tres"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "UI theme path is invalid or protected.")
+	if not (path.get_extension().to_lower() in ["tres", "res"]):
+		return _response(false, "UI theme path must end with .tres or .res.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "UI theme already exists: " + path)
+
+	var palette_result := _design_palette_entries_from_request(request)
+	if not bool(palette_result.get("ok", false)):
+		return _response(false, str(palette_result.get("message", "")))
+	var palette_entries := palette_result.get("palette", []) as Array
+	var theme := _build_ui_theme_from_palette(palette_entries, request)
+	theme.resource_path = path
+	var errors: Array = []
+	errors.append_array(_apply_theme_values(theme, "colors", request.get("colors", {})))
+	errors.append_array(_apply_theme_values(theme, "constants", request.get("constants", {})))
+	errors.append_array(_apply_theme_values(theme, "font_sizes", request.get("font_sizes", {})))
+	if not errors.is_empty():
+		return _response(false, "UI theme entries contained errors.", {
+			"errors": errors
+		})
+
+	var save_response := _save_new_resource(theme, path, "UI theme created.", "create_ui_theme " + path)
+	if bool(save_response.get("ok", false)):
+		var data := save_response.get("data", {}) as Dictionary
+		data["palette"] = _design_palette_payload(palette_entries)
+		data["design"] = _design_status({
+			"root": root
+		})
+		save_response["data"] = data
+	return save_response
+
+
+func _apply_ui_theme(request: Dictionary) -> Dictionary:
+	var theme_path := _normalize_resource_path(str(request.get("theme_path", request.get("path", ""))))
+	if theme_path.is_empty() or not _design_path_allowed(theme_path):
+		return _response(false, "Theme path is invalid or protected.")
+	var theme = load(theme_path)
+	if not theme is Theme:
+		return _response(false, "Cannot load Theme resource: " + theme_path)
+
+	var node_path := str(request.get("node_path", request.get("target", "."))).strip_edges()
+	if node_path.is_empty():
+		node_path = "."
+	var target := _find_scene_node(node_path)
+	if target == null:
+		return _response(false, "Theme target node was not found: " + node_path)
+
+	var controls: Array = []
+	_collect_control_nodes(target, bool(request.get("recursive", true)), controls)
+	if controls.is_empty():
+		return _response(false, "Theme target does not contain Control nodes: " + node_path)
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "set_property",
+			"node_path": node_path,
+			"property": "theme"
+		}
+	], "apply_ui_theme " + theme_path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; theme was not applied.", {
+			"snapshot": snapshot
+		})
+
+	for item in controls:
+		if item is Control:
+			(item as Control).theme = theme as Theme
+	_set_scene_dirty()
+	_focus_editor_node(target)
+	return _response(true, "UI theme applied.", {
+		"theme_path": theme_path,
+		"target_path": node_path,
+		"applied_count": controls.size(),
+		"snapshot": _snapshot_summary(snapshot),
+		"visual_feedback": _visual_feedback_for_node(target)
+	})
+
+
+func _create_material_pack(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art/materials")))
+	if root.is_empty():
+		return _response(false, "Material pack root is invalid or protected.")
+	var replace := bool(request.get("replace", false))
+	var palette_result := _design_palette_entries_from_request(request)
+	if not bool(palette_result.get("ok", false)):
+		return _response(false, str(palette_result.get("message", "")))
+	var palette_entries := palette_result.get("palette", []) as Array
+	var specs := _design_material_specs(request.get("materials", []), palette_entries)
+	if specs.is_empty():
+		return _response(false, "No material specs were provided.")
+
+	var shader_path := root.path_join("tint_canvas_item.gdshader")
+	if FileAccess.file_exists(shader_path) and not replace:
+		return _response(false, "Tint shader already exists: " + shader_path)
+	var paths: Array = [shader_path]
+	for spec in specs:
+		var spec_dict := spec as Dictionary
+		var material_path := root.path_join(_safe_design_slug(str(spec_dict.get("name", "")), "material") + ".tres")
+		if FileAccess.file_exists(material_path) and not replace:
+			return _response(false, "Material already exists: " + material_path)
+		spec_dict["path"] = material_path
+		paths.append(material_path)
+
+	var snapshot_actions: Array = [
+		{
+			"type": "make_dir",
+			"path": root
+		}
+	]
+	for path in paths:
+		snapshot_actions.append({
+			"type": "write_file",
+			"path": str(path)
+		})
+	var snapshot := _create_snapshot(snapshot_actions, "create_material_pack " + root)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; material pack was not saved.", {
+			"snapshot": snapshot
+		})
+
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create material directory: " + error_string(dir_error), {
+			"root": root,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+
+	var shader := Shader.new()
+	shader.code = _design_tint_shader_code()
+	shader.resource_path = shader_path
+	var shader_save_error := ResourceSaver.save(shader, shader_path)
+	if shader_save_error != OK:
+		return _response(false, "Failed to save tint shader: " + error_string(shader_save_error), {
+			"path": shader_path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+
+	var saved: Array = [shader_path]
+	var materials: Array = []
+	var errors: Array = []
+	for spec in specs:
+		var spec_dict := spec as Dictionary
+		var material := ShaderMaterial.new()
+		material.shader = shader
+		material.set_shader_parameter("tint_color", spec_dict.get("color", Color.WHITE))
+		material.resource_path = str(spec_dict.get("path", ""))
+		var save_error := ResourceSaver.save(material, material.resource_path)
+		if save_error == OK:
+			saved.append(material.resource_path)
+			materials.append({
+				"name": str(spec_dict.get("name", "")),
+				"path": material.resource_path,
+				"color": _encode_value(spec_dict.get("color", Color.WHITE))
+			})
+		else:
+			errors.append(material.resource_path + " -> " + error_string(save_error))
+
+	_refresh_editor_filesystem()
+	return _response(errors.is_empty(), "Material pack created." if errors.is_empty() else "Material pack had errors.", {
+		"root": root,
+		"shader_path": shader_path,
+		"paths": saved,
+		"materials": materials,
+		"errors": errors,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], saved)
+
+
+func _inspect_art_assets(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://")))
+	if root.is_empty():
+		return _response(false, "Art asset root is invalid or protected.")
+
+	var max_count := int(request.get("max_count", RESOURCE_FILE_LIMIT_DEFAULT))
+	max_count = mini(maxi(max_count, 1), 1000)
+	var extensions := _resource_extension_filter(request.get("extensions", []))
+	if extensions.is_empty():
+		extensions = _design_all_asset_extensions()
+
+	var files: Array = []
+	_collect_resource_file_infos(root, files, max_count, extensions, false)
+	var counts := {}
+	var issues: Array = []
+	var max_texture_size := int(request.get("max_texture_size", 4096))
+	for item in files:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var info := item as Dictionary
+		var extension := str(info.get("extension", "")).to_lower()
+		counts[extension] = int(counts.get(extension, 0)) + 1
+		issues.append_array(_design_asset_issues(info, max_texture_size))
+
+	var data := {
+		"root": root,
+		"files": files,
+		"counts": counts,
+		"issues": issues,
+		"issue_count": issues.size()
+	}
+	var changed_paths: Array = []
+	if bool(request.get("write_report", false)):
+		var report_path := _normalize_resource_path(str(request.get("report_path", root.path_join("reports").path_join("art_assets_report.json"))))
+		if report_path.is_empty() or not _design_path_allowed(report_path):
+			return _response(false, "Art asset report path is invalid or protected.")
+		var snapshot := _create_snapshot([
+			{
+				"type": "write_file",
+				"path": report_path
+			}
+		], "inspect_art_assets " + root)
+		if not bool(snapshot.get("ok", true)):
+			return _response(false, "Failed to create pre-change snapshot; report was not written.", {
+				"snapshot": snapshot
+			})
+		var payload := data.duplicate(true)
+		payload["generated_at"] = Time.get_datetime_string_from_system()
+		var write_error := _write_json_file(report_path, payload)
+		if write_error != OK:
+			return _response(false, "Failed to write art asset report: " + error_string(write_error), {
+				"path": report_path,
+				"snapshot": _snapshot_summary(snapshot)
+			})
+		data["report_path"] = report_path
+		data["snapshot"] = _snapshot_summary(snapshot)
+		changed_paths.append(report_path)
+		_refresh_editor_filesystem()
+
+	return _response(true, "Art assets inspected.", data, [], changed_paths)
+
+
+func _design_status(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return {
+			"root": "",
+			"available": false,
+			"message": "Design root is invalid or protected."
+		}
+
+	var palette_files: Array = []
+	var theme_files: Array = []
+	var material_files: Array = []
+	var image_files: Array = []
+	var audio_files: Array = []
+	var font_files: Array = []
+	_collect_resource_file_infos(root.path_join("palettes"), palette_files, 50, ["json"], false)
+	_collect_resource_file_infos(root.path_join("themes"), theme_files, 50, ["tres", "res"], false)
+	_collect_resource_file_infos(root.path_join("materials"), material_files, 80, ["tres", "res", "material", "gdshader"], false)
+	_collect_resource_file_infos(root, image_files, 120, DESIGN_IMAGE_EXTENSIONS, false)
+	_collect_resource_file_infos(root, audio_files, 80, DESIGN_AUDIO_EXTENSIONS, false)
+	_collect_resource_file_infos(root, font_files, 40, DESIGN_FONT_EXTENSIONS, false)
+	var design_system_path := root.path_join("design_system.json")
+	return {
+		"root": root,
+		"available": DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(root)),
+		"design_system_path": design_system_path,
+		"design_system_exists": FileAccess.file_exists(design_system_path),
+		"palette_count": palette_files.size(),
+		"theme_count": theme_files.size(),
+		"material_count": material_files.size(),
+		"image_count": image_files.size(),
+		"audio_count": audio_files.size(),
+		"font_count": font_files.size(),
+		"palettes": palette_files,
+		"themes": theme_files,
+		"materials": material_files
+	}
+
+
+func _normalize_design_root(raw_root: String) -> String:
+	var root := _normalize_resource_path(raw_root, true)
+	if root.is_empty() or not _design_path_allowed(root):
+		return ""
+	return root
+
+
+func _design_path_allowed(path: String) -> bool:
+	if path.is_empty():
+		return false
+	if path.begins_with(PLUGIN_ROOT) or path.begins_with("res://.godot"):
+		return false
+	return true
+
+
+func _design_all_asset_extensions() -> Array:
+	var extensions: Array = []
+	for item in DESIGN_IMAGE_EXTENSIONS + DESIGN_AUDIO_EXTENSIONS + DESIGN_FONT_EXTENSIONS + DESIGN_RESOURCE_EXTENSIONS + ["json"]:
+		if not extensions.has(item):
+			extensions.append(item)
+	return extensions
+
+
+func _safe_design_slug(raw_value: String, fallback: String) -> String:
+	var value := raw_value.strip_edges().to_lower()
+	var slug := ""
+	for index in value.length():
+		var character := value.substr(index, 1)
+		if character.is_valid_identifier() or character.is_valid_int() or character in ["-", "_"]:
+			slug += character
+		elif character in [" ", ".", "/"]:
+			slug += "_"
+	while slug.contains("__"):
+		slug = slug.replace("__", "_")
+	slug = slug.trim_prefix("_").trim_suffix("_")
+	return fallback if slug.is_empty() else slug
+
+
+func _design_palette_entries(raw_palette) -> Array:
+	if typeof(raw_palette) == TYPE_DICTIONARY:
+		var palette_dict := raw_palette as Dictionary
+		if palette_dict.has("colors"):
+			return _design_palette_entries(palette_dict.get("colors", {}))
+		var entries: Array = []
+		for raw_name in palette_dict.keys():
+			var name := str(raw_name).strip_edges()
+			if name.is_empty():
+				continue
+			entries.append({
+				"name": _safe_design_slug(name, "color"),
+				"label": name,
+				"color": _decode_design_color(palette_dict[raw_name], _default_design_color(name))
+			})
+		return _default_design_palette() if entries.is_empty() else entries
+	if typeof(raw_palette) == TYPE_ARRAY:
+		var entries: Array = []
+		for item in raw_palette as Array:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var entry := item as Dictionary
+			var name := str(entry.get("name", entry.get("label", ""))).strip_edges()
+			if name.is_empty():
+				name = "color_" + str(entries.size() + 1)
+			entries.append({
+				"name": _safe_design_slug(name, "color"),
+				"label": name,
+				"color": _decode_design_color(entry.get("color", entry.get("value", entry)), _default_design_color(name))
+			})
+		return _default_design_palette() if entries.is_empty() else entries
+	return _default_design_palette()
+
+
+func _design_palette_entries_from_request(request: Dictionary) -> Dictionary:
+	var palette_path := _normalize_resource_path(str(request.get("palette_path", "")))
+	if not palette_path.is_empty():
+		if not _design_path_allowed(palette_path) or not FileAccess.file_exists(palette_path):
+			return {
+				"ok": false,
+				"message": "Palette file is invalid or missing: " + palette_path
+			}
+		var payload := _read_json_file(palette_path)
+		if payload.is_empty():
+			return {
+				"ok": false,
+				"message": "Palette file is not valid JSON: " + palette_path
+			}
+		return {
+			"ok": true,
+			"palette": _design_palette_entries(payload)
+		}
+	if request.has("palette"):
+		return {
+			"ok": true,
+			"palette": _design_palette_entries(request.get("palette"))
+		}
+	if request.has("colors"):
+		return {
+			"ok": true,
+			"palette": _design_palette_entries(request.get("colors"))
+		}
+	return {
+		"ok": true,
+		"palette": _default_design_palette()
+	}
+
+
+func _default_design_palette() -> Array:
+	return [
+		{
+			"name": "background",
+			"label": "Background",
+			"color": Color(0.05, 0.07, 0.10, 1.0)
+		},
+		{
+			"name": "surface",
+			"label": "Surface",
+			"color": Color(0.12, 0.16, 0.23, 1.0)
+		},
+		{
+			"name": "primary",
+			"label": "Primary",
+			"color": Color(0.25, 0.62, 1.0, 1.0)
+		},
+		{
+			"name": "accent",
+			"label": "Accent",
+			"color": Color(0.39, 0.86, 0.58, 1.0)
+		},
+		{
+			"name": "danger",
+			"label": "Danger",
+			"color": Color(1.0, 0.36, 0.36, 1.0)
+		},
+		{
+			"name": "text",
+			"label": "Text",
+			"color": Color(0.92, 0.95, 1.0, 1.0)
+		}
+	]
+
+
+func _default_design_color(name: String) -> Color:
+	var slug := _safe_design_slug(name, "color")
+	for entry in _default_design_palette():
+		if typeof(entry) == TYPE_DICTIONARY and str((entry as Dictionary).get("name", "")) == slug:
+			return (entry as Dictionary).get("color", Color.WHITE) as Color
+	return Color.WHITE
+
+
+func _decode_design_color(raw_value, fallback: Color) -> Color:
+	if raw_value is Color:
+		return raw_value as Color
+	if typeof(raw_value) == TYPE_STRING:
+		var text := str(raw_value).strip_edges()
+		if not text.is_empty():
+			return Color.from_string(text, fallback)
+	if typeof(raw_value) == TYPE_DICTIONARY:
+		var decoded = _decode_value(raw_value)
+		if decoded is Color:
+			return decoded as Color
+		var value_dict := raw_value as Dictionary
+		if value_dict.has("value"):
+			return _decode_design_color(value_dict.get("value"), fallback)
+	return fallback
+
+
+func _design_palette_payload(entries: Array) -> Array:
+	var payload: Array = []
+	for item in entries:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var entry := item as Dictionary
+		var color: Color = entry.get("color", Color.WHITE)
+		payload.append({
+			"name": str(entry.get("name", "")),
+			"label": str(entry.get("label", entry.get("name", ""))),
+			"value": "#" + color.to_html(true),
+			"color": _encode_value(color)
+		})
+	return payload
+
+
+func _design_palette_color_map(entries: Array) -> Dictionary:
+	var colors := {}
+	for item in entries:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var entry := item as Dictionary
+		colors[str(entry.get("name", ""))] = entry.get("color", Color.WHITE)
+	return colors
+
+
+func _build_ui_theme_from_palette(palette_entries: Array, request: Dictionary) -> Theme:
+	var colors := _design_palette_color_map(palette_entries)
+	var background: Color = colors.get("background", Color(0.05, 0.07, 0.10, 1.0))
+	var surface: Color = colors.get("surface", Color(0.12, 0.16, 0.23, 1.0))
+	var primary: Color = colors.get("primary", Color(0.25, 0.62, 1.0, 1.0))
+	var accent: Color = colors.get("accent", Color(0.39, 0.86, 0.58, 1.0))
+	var danger: Color = colors.get("danger", Color(1.0, 0.36, 0.36, 1.0))
+	var text: Color = colors.get("text", Color(0.92, 0.95, 1.0, 1.0))
+	var radius := int(request.get("corner_radius", 6))
+	var font_size := int(request.get("font_size", 18))
+
+	var theme := Theme.new()
+	theme.set_color("font_color", "Label", text)
+	theme.set_color("font_color", "Button", text)
+	theme.set_color("font_hover_color", "Button", Color.WHITE)
+	theme.set_color("font_pressed_color", "Button", Color.WHITE)
+	theme.set_color("font_color", "RichTextLabel", text)
+	theme.set_color("font_color", "LineEdit", text)
+	theme.set_color("font_color", "TextEdit", text)
+	theme.set_color("font_color", "CheckBox", text)
+	theme.set_color("font_color", "OptionButton", text)
+	theme.set_color("font_color", "ItemList", text)
+	theme.set_color("selection_color", "ItemList", primary)
+	theme.set_font_size("font_size", "Label", font_size)
+	theme.set_font_size("font_size", "Button", font_size)
+	theme.set_font_size("normal_font_size", "RichTextLabel", font_size)
+	theme.set_font_size("font_size", "LineEdit", font_size)
+	theme.set_font_size("font_size", "TextEdit", font_size)
+	theme.set_constant("margin_left", "MarginContainer", 12)
+	theme.set_constant("margin_right", "MarginContainer", 12)
+	theme.set_constant("margin_top", "MarginContainer", 10)
+	theme.set_constant("margin_bottom", "MarginContainer", 10)
+	theme.set_stylebox("panel", "Panel", _design_stylebox(surface, primary.darkened(0.25), radius, 1))
+	theme.set_stylebox("normal", "Button", _design_stylebox(primary.darkened(0.18), primary, radius, 1))
+	theme.set_stylebox("hover", "Button", _design_stylebox(primary, accent, radius, 1))
+	theme.set_stylebox("pressed", "Button", _design_stylebox(accent.darkened(0.12), accent, radius, 1))
+	theme.set_stylebox("disabled", "Button", _design_stylebox(surface.darkened(0.12), surface.lightened(0.08), radius, 1))
+	theme.set_stylebox("normal", "LineEdit", _design_stylebox(background, surface.lightened(0.14), radius, 1))
+	theme.set_stylebox("normal", "TextEdit", _design_stylebox(background, surface.lightened(0.14), radius, 1))
+	theme.set_stylebox("panel", "PopupPanel", _design_stylebox(surface, danger.darkened(0.35), radius, 1))
+	return theme
+
+
+func _design_stylebox(background: Color, border: Color, radius: int, border_width: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = background
+	style.border_color = border
+	style.border_width_left = border_width
+	style.border_width_right = border_width
+	style.border_width_top = border_width
+	style.border_width_bottom = border_width
+	style.corner_radius_top_left = radius
+	style.corner_radius_top_right = radius
+	style.corner_radius_bottom_left = radius
+	style.corner_radius_bottom_right = radius
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	return style
+
+
+func _collect_control_nodes(node: Node, recursive: bool, controls: Array) -> void:
+	if node is Control:
+		controls.append(node)
+	if not recursive:
+		return
+	for child in node.get_children():
+		if child is Node:
+			_collect_control_nodes(child as Node, recursive, controls)
+
+
+func _visual_feedback_for_node(node: Node) -> Dictionary:
+	return {
+		"focused": node != null,
+		"reason": "selected target node" if node != null else "no focusable scene node",
+		"node": _node_summary(node, _edited_scene_root()) if node != null else {}
+	}
+
+
+func _design_material_specs(raw_materials, palette_entries: Array) -> Array:
+	var specs: Array = []
+	if typeof(raw_materials) == TYPE_ARRAY:
+		for item in raw_materials as Array:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+			var material := item as Dictionary
+			var name := str(material.get("name", material.get("role", ""))).strip_edges()
+			if name.is_empty():
+				name = "material_" + str(specs.size() + 1)
+			specs.append({
+				"name": name,
+				"color": _decode_design_color(material.get("color", material.get("value", {})), _default_design_color(name))
+			})
+	if not specs.is_empty():
+		return specs
+
+	var colors := _design_palette_color_map(palette_entries)
+	var roles := ["primary", "accent", "danger", "surface", "background"]
+	for role in roles:
+		if colors.has(role):
+			specs.append({
+				"name": role,
+				"color": colors.get(role)
+			})
+	return specs
+
+
+func _design_tint_shader_code() -> String:
+	return "shader_type canvas_item;\nuniform vec4 tint_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);\nvoid fragment() {\n\tCOLOR = texture(TEXTURE, UV) * tint_color;\n}\n"
+
+
+func _design_asset_issues(info: Dictionary, max_texture_size: int) -> Array:
+	var issues: Array = []
+	var path := str(info.get("path", ""))
+	var extension := str(info.get("extension", "")).to_lower()
+	var filename := path.get_file()
+	if filename.contains(" "):
+		issues.append({
+			"severity": "warning",
+			"type": "asset_naming",
+			"path": path,
+			"message": "Asset filename contains spaces."
+		})
+	if filename != filename.to_lower():
+		issues.append({
+			"severity": "info",
+			"type": "asset_naming",
+			"path": path,
+			"message": "Asset filename uses uppercase characters."
+		})
+	if (extension in DESIGN_IMAGE_EXTENSIONS or extension in DESIGN_AUDIO_EXTENSIONS or extension in DESIGN_FONT_EXTENSIONS) and not bool(info.get("imported", false)):
+		issues.append({
+			"severity": "warning",
+			"type": "missing_import_sidecar",
+			"path": path,
+			"message": "Imported asset has no .import sidecar yet; refresh or reimport in Godot."
+		})
+	if extension in ["png", "jpg", "jpeg", "webp", "tga", "bmp", "exr", "hdr"]:
+		var image := Image.new()
+		var load_error := image.load(path)
+		if load_error == OK and (image.get_width() > max_texture_size or image.get_height() > max_texture_size):
+			issues.append({
+				"severity": "warning",
+				"type": "large_texture",
+				"path": path,
+				"message": "Texture is larger than " + str(max_texture_size) + " px on one axis.",
+				"width": image.get_width(),
+				"height": image.get_height()
+			})
+	return issues
 
 
 func _save_new_resource(resource: Resource, path: String, success_message: String, snapshot_reason: String) -> Dictionary:

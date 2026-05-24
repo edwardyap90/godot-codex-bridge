@@ -21,6 +21,7 @@ var pending_label: Label
 var snapshot_label: Label
 var play_label: Label
 var run_label: Label
+var design_label: Label
 var command_label: Label
 var result_label: Label
 var visual_label: Label
@@ -38,6 +39,7 @@ var restore_button: Button
 var stop_button: Button
 var run_play_label: Label
 var run_report_label: Label
+var design_detail_label: Label
 var raw_detail_label: Label
 
 
@@ -95,6 +97,7 @@ func _build_ui() -> void:
 	_build_pending_tab()
 	_build_snapshots_tab()
 	_build_run_tab()
+	_build_design_tab()
 	_build_raw_tab()
 
 
@@ -121,6 +124,7 @@ func _build_overview_tab() -> void:
 	snapshot_label = _add_row(body, "Snapshots", "")
 	play_label = _add_row(body, "Play", "")
 	run_label = _add_row(body, "Last run", "")
+	design_label = _add_row(body, "Design", "")
 	command_label = _add_row(body, "Last command", "Waiting for Codex")
 	result_label = _add_row(body, "Result", "")
 	visual_label = _add_row(body, "Visual feedback", "No recent editor focus")
@@ -213,6 +217,20 @@ func _build_run_tab() -> void:
 	body.add_child(run_report_label)
 
 
+func _build_design_tab() -> void:
+	var design_tab := ScrollContainer.new()
+	design_tab.name = "Design"
+	design_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	design_tab.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tab_container.add_child(design_tab)
+
+	design_detail_label = Label.new()
+	design_detail_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	design_detail_label.text = "No art direction data yet"
+	design_detail_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	design_tab.add_child(design_detail_label)
+
+
 func _build_raw_tab() -> void:
 	var raw_tab := ScrollContainer.new()
 	raw_tab.name = "Raw Mode"
@@ -263,6 +281,7 @@ func _refresh_static_info() -> void:
 	_populate_pending_list()
 	_populate_snapshot_list()
 	_populate_run_report(state)
+	_populate_design_panel(state)
 	_populate_raw_panel(state)
 
 	pending_label.text = "Pending: " + str(pending_batches.size()) + " batches -> " + str(status.get("pending_actions_path", ""))
@@ -359,6 +378,43 @@ func _populate_run_report(state: Dictionary) -> void:
 		for item in warnings:
 			lines.append("- " + str(item))
 	run_report_label.text = "\n".join(lines)
+
+
+func _populate_design_panel(state: Dictionary) -> void:
+	var status := state.get("status", {}) as Dictionary
+	var design := state.get("design", status.get("design", {})) as Dictionary
+	if design_label != null:
+		design_label.text = "Design: " + str(design.get("palette_count", 0)) + " palettes / " + str(design.get("theme_count", 0)) + " themes / " + str(design.get("material_count", 0)) + " materials"
+	if design_detail_label == null:
+		return
+	if design.is_empty():
+		design_detail_label.text = "No art direction data yet"
+		return
+	var lines: Array[String] = [
+		"Root: " + str(design.get("root", "")),
+		"Design system: " + ("present" if bool(design.get("design_system_exists", false)) else "missing"),
+		"Palettes: " + str(design.get("palette_count", 0)),
+		"Themes: " + str(design.get("theme_count", 0)),
+		"Materials: " + str(design.get("material_count", 0)),
+		"Images: " + str(design.get("image_count", 0)),
+		"Audio: " + str(design.get("audio_count", 0)),
+		"Fonts: " + str(design.get("font_count", 0))
+	]
+	var palettes := design.get("palettes", []) as Array
+	if not palettes.is_empty():
+		lines.append("")
+		lines.append("Recent palettes:")
+		for item in palettes.slice(0, mini(palettes.size(), 4)):
+			if typeof(item) == TYPE_DICTIONARY:
+				lines.append("- " + str((item as Dictionary).get("path", "")))
+	var themes := design.get("themes", []) as Array
+	if not themes.is_empty():
+		lines.append("")
+		lines.append("Recent themes:")
+		for item in themes.slice(0, mini(themes.size(), 4)):
+			if typeof(item) == TYPE_DICTIONARY:
+				lines.append("- " + str((item as Dictionary).get("path", "")))
+	design_detail_label.text = "\n".join(lines)
 
 
 func _populate_raw_panel(state: Dictionary) -> void:
