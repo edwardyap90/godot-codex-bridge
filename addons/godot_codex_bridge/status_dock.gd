@@ -384,7 +384,7 @@ func _populate_design_panel(state: Dictionary) -> void:
 	var status := state.get("status", {}) as Dictionary
 	var design := state.get("design", status.get("design", {})) as Dictionary
 	if design_label != null:
-		design_label.text = "Design: " + str(design.get("palette_count", 0)) + " palettes / " + str(design.get("theme_count", 0)) + " themes / " + str(design.get("material_count", 0)) + " materials"
+		design_label.text = "Design: " + str(design.get("palette_count", 0)) + " palettes / " + str(design.get("theme_count", 0)) + " themes / " + str(design.get("sprite_count", 0)) + " sprites / " + str(design.get("asset_manifest_count", 0)) + " manifests"
 	if design_detail_label == null:
 		return
 	if design.is_empty():
@@ -397,8 +397,12 @@ func _populate_design_panel(state: Dictionary) -> void:
 		"Themes: " + str(design.get("theme_count", 0)),
 		"Materials: " + str(design.get("material_count", 0)),
 		"Images: " + str(design.get("image_count", 0)),
+		"Sprites: " + str(design.get("sprite_count", 0)),
+		"Icons: " + str(design.get("icon_count", 0)),
 		"Audio: " + str(design.get("audio_count", 0)),
-		"Fonts: " + str(design.get("font_count", 0))
+		"Fonts: " + str(design.get("font_count", 0)),
+		"Asset manifests: " + str(design.get("asset_manifest_count", 0)),
+		"Reports: " + str(design.get("report_count", 0))
 	]
 	var palettes := design.get("palettes", []) as Array
 	if not palettes.is_empty():
@@ -412,6 +416,27 @@ func _populate_design_panel(state: Dictionary) -> void:
 		lines.append("")
 		lines.append("Recent themes:")
 		for item in themes.slice(0, mini(themes.size(), 4)):
+			if typeof(item) == TYPE_DICTIONARY:
+				lines.append("- " + str((item as Dictionary).get("path", "")))
+	var sprites := design.get("sprites", []) as Array
+	if not sprites.is_empty():
+		lines.append("")
+		lines.append("Recent sprites:")
+		for item in sprites.slice(0, mini(sprites.size(), 4)):
+			if typeof(item) == TYPE_DICTIONARY:
+				lines.append("- " + str((item as Dictionary).get("path", "")))
+	var manifests := design.get("asset_manifests", []) as Array
+	if not manifests.is_empty():
+		lines.append("")
+		lines.append("Asset manifests:")
+		for item in manifests.slice(0, mini(manifests.size(), 4)):
+			if typeof(item) == TYPE_DICTIONARY:
+				lines.append("- " + str((item as Dictionary).get("path", "")))
+	var reports := design.get("reports", []) as Array
+	if not reports.is_empty():
+		lines.append("")
+		lines.append("Recent reports:")
+		for item in reports.slice(0, mini(reports.size(), 4)):
 			if typeof(item) == TYPE_DICTIONARY:
 				lines.append("- " + str((item as Dictionary).get("path", "")))
 	design_detail_label.text = "\n".join(lines)

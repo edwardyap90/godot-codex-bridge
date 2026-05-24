@@ -25,11 +25,18 @@ Requests are JSON objects with a `command` field. The shell helper adds `request
 {"command":"create_material","path":"res://materials/player_material.tres","material_type":"CanvasItemMaterial","properties":{"blend_mode":1},"replace":true}
 {"command":"create_theme","path":"res://ui/game_theme.tres","colors":{"Label/font_color":{"type":"Color","r":1,"g":1,"b":1,"a":1}},"font_sizes":{"Label/font_size":18},"replace":true}
 {"command":"create_design_system","root":"res://art","name":"My Game Art","style":"bright readable arcade UI","replace":true}
+{"command":"get_design_system","root":"res://art"}
+{"command":"update_design_system","root":"res://art","tokens":{"typography":{"base_font_size":20}}}
+{"command":"validate_design_system","root":"res://art"}
+{"command":"export_design_tokens","root":"res://art","path":"res://art/design_tokens.json","replace":true}
 {"command":"create_palette","path":"res://art/palettes/game_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}
 {"command":"create_ui_theme","path":"res://art/themes/game_theme.tres","palette_path":"res://art/palettes/game_palette.json","replace":true}
 {"command":"apply_ui_theme","node_path":"CanvasLayer/HUD","theme_path":"res://art/themes/game_theme.tres","recursive":true}
+{"command":"create_ui_template","template":"main_menu","path":"res://ui/main_menu.tscn","theme_path":"res://art/themes/game_theme.tres","replace":true}
+{"command":"inspect_ui_scene","scene_path":"res://ui/main_menu.tscn"}
 {"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/game_palette.json","replace":true}
 {"command":"inspect_art_assets","root":"res://art","write_report":true}
+{"command":"run_design_lint","root":"res://art","scene_path":"res://ui/main_menu.tscn","write_report":true}
 {"command":"get_animation_players"}
 {"command":"create_animation","node_path":"AnimationPlayer","animation_name":"idle","length":1.0}
 {"command":"add_animation_value_key","node_path":"AnimationPlayer","animation_name":"idle","target_path":"..","property":"position","time":0.5,"value":{"type":"Vector2","x":20,"y":0}}
@@ -159,17 +166,36 @@ calling model APIs from the plugin.
 
 ```json
 {"command":"get_design_status","root":"res://art"}
+{"command":"get_design_system","root":"res://art"}
 {"command":"create_design_system","root":"res://art","name":"Dungeon Art","style":"clear top-down fantasy UI","replace":true}
+{"command":"update_design_system","root":"res://art","tokens":{"spacing":{"hud_gap":12}}}
+{"command":"validate_design_system","root":"res://art"}
+{"command":"export_design_tokens","root":"res://art","path":"res://art/design_tokens.json","replace":true}
 {"command":"create_palette","path":"res://art/palettes/dungeon_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}
 {"command":"create_ui_theme","path":"res://art/themes/dungeon_theme.tres","palette_path":"res://art/palettes/dungeon_palette.json","corner_radius":6,"font_size":18,"replace":true}
 {"command":"apply_ui_theme","node_path":"HUD","theme_path":"res://art/themes/dungeon_theme.tres","recursive":true}
+{"command":"create_ui_template","template":"hud","path":"res://ui/hud.tscn","theme_path":"res://art/themes/dungeon_theme.tres","replace":true}
+{"command":"inspect_ui_scene","scene_path":"res://ui/hud.tscn","min_touch_size":44}
 {"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/dungeon_palette.json","replace":true}
+{"command":"create_placeholder_sprite","path":"res://art/sprites/player.png","role":"player","width":64,"height":64,"replace":true}
+{"command":"create_placeholder_icon_set","root":"res://art/icons","icons":["health","coin","key"],"size":32,"replace":true}
+{"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}
+{"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}
+{"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}
 {"command":"inspect_art_assets","root":"res://art","max_texture_size":2048,"write_report":true}
+{"command":"run_design_lint","root":"res://art","scene_path":"res://ui/hud.tscn","write_report":true}
 ```
 
 `create_material_pack` creates a reusable canvas-item tint shader plus
 `ShaderMaterial` resources from the palette. `inspect_art_assets` reports asset
 counts, import-sidecar gaps, naming issues, and oversized textures.
+`create_placeholder_sprite` and `create_placeholder_icon_set` generate simple
+transparent PNGs for early gameplay prototypes. `create_sprite_frames` builds a
+Godot `SpriteFrames` resource from existing image paths. `set_texture_import_preset`
+updates `.import` sidecars for common 2D art workflows, and
+`create_asset_manifest` writes a machine-readable asset index for Codex.
+`run_design_lint` combines Design System v2 validation, UI scene checks, and
+asset checks into one project-local report.
 
 ## Controlled Raw API
 

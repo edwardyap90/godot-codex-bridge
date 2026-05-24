@@ -101,12 +101,24 @@ For UI and art-heavy tasks, start by creating or reading the design workspace:
 tools/godot_bridge_send.sh --json '{"command":"get_design_status","root":"res://art"}'
 tools/godot_bridge_send.sh --json '{"command":"create_palette","path":"res://art/palettes/game_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_ui_theme","path":"res://art/themes/game_theme.tres","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_ui_template","template":"main_menu","path":"res://ui/main_menu.tscn","theme_path":"res://art/themes/game_theme.tres","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"inspect_ui_scene","scene_path":"res://ui/main_menu.tscn"}'
 tools/godot_bridge_send.sh --json '{"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_placeholder_sprite","path":"res://art/sprites/player.png","role":"player","width":64,"height":64,"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_placeholder_icon_set","root":"res://art/icons","icons":["health","coin","key"],"size":32,"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"inspect_art_assets","root":"res://art","write_report":true}'
+tools/godot_bridge_send.sh --json '{"command":"run_design_lint","root":"res://art","scene_path":"res://ui/main_menu.tscn","write_report":true}'
 ```
 
 The Design tab shows palette/theme/material counts and recent art-direction
-resources, so the user can see visual-system work from inside Godot.
+resources and reports, so the user can see visual-system work from inside
+Godot. For v0.6-style UI and asset work, Codex should generate or refresh the
+asset manifest, then run `validate_design_system`, `inspect_ui_scene`,
+`inspect_art_assets`, or `run_design_lint` before claiming visual changes are
+complete.
 
 ## Controlled Raw API
 

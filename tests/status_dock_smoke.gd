@@ -39,10 +39,10 @@ class FakeBridge:
 	func console_state() -> Dictionary:
 		return {
 			"status": {
-				"bridge_version": "0.5.2",
+				"bridge_version": "0.6.0",
 				"control_plane": {
 					"schema_version": 2,
-					"bridge_version": "0.5.2",
+					"bridge_version": "0.6.0",
 					"godot_version": {
 						"string": "4.6.2"
 					}
@@ -69,8 +69,12 @@ class FakeBridge:
 					"theme_count": 1,
 					"material_count": 2,
 					"image_count": 3,
+					"sprite_count": 1,
+					"icon_count": 1,
 					"audio_count": 0,
 					"font_count": 0,
+					"asset_manifest_count": 1,
+					"report_count": 1,
 					"palettes": [
 						{
 							"path": "res://art/palettes/smoke_palette.json"
@@ -79,6 +83,21 @@ class FakeBridge:
 					"themes": [
 						{
 							"path": "res://art/themes/smoke_theme.tres"
+						}
+					],
+					"sprites": [
+						{
+							"path": "res://art/sprites/smoke_player.png"
+						}
+					],
+					"asset_manifests": [
+						{
+							"path": "res://art/asset_manifest.json"
+						}
+					],
+					"reports": [
+						{
+							"path": "res://art/reports/design_lint_report.json"
 						}
 					]
 				}
@@ -104,8 +123,12 @@ class FakeBridge:
 				"theme_count": 1,
 				"material_count": 2,
 				"image_count": 3,
+				"sprite_count": 1,
+				"icon_count": 1,
 				"audio_count": 0,
 				"font_count": 0,
+				"asset_manifest_count": 1,
+				"report_count": 1,
 				"palettes": [
 					{
 						"path": "res://art/palettes/smoke_palette.json"
@@ -114,6 +137,21 @@ class FakeBridge:
 				"themes": [
 					{
 						"path": "res://art/themes/smoke_theme.tres"
+					}
+				],
+				"sprites": [
+					{
+						"path": "res://art/sprites/smoke_player.png"
+					}
+				],
+				"asset_manifests": [
+					{
+						"path": "res://art/asset_manifest.json"
+					}
+				],
+				"reports": [
+					{
+						"path": "res://art/reports/design_lint_report.json"
 					}
 				]
 			},
@@ -189,7 +227,11 @@ func _init() -> void:
 	passed = passed and dock.play_label.text.contains("running")
 	passed = passed and not dock.stop_button.disabled
 	passed = passed and dock.design_label.text.contains("1 palettes")
+	passed = passed and dock.design_label.text.contains("1 sprites")
 	passed = passed and dock.design_detail_label.text.contains("smoke_palette")
+	passed = passed and dock.design_detail_label.text.contains("smoke_player")
+	passed = passed and dock.design_detail_label.text.contains("asset_manifest")
+	passed = passed and dock.design_detail_label.text.contains("design_lint_report")
 	dock._on_apply_pressed()
 	passed = passed and bridge.applied_queue_id == "queue_smoke"
 	passed = passed and dock.pending_list.item_count == 0

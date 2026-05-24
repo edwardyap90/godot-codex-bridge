@@ -264,6 +264,7 @@ func _init() -> void:
 		"command": "reimport_resources",
 		"paths": ["res://tests/fixtures/fixture_scene.tscn"]
 	})
+	var reimported_paths_after_resource_smoke := fake_editor.filesystem.reimported_paths.duplicate()
 	var animation_players_result: Dictionary = bridge.handle_request({
 		"command": "get_animation_players"
 	})
@@ -536,6 +537,31 @@ func _init() -> void:
 			"text": "#edf5ff"
 		}
 	})
+	var get_design_system_result: Dictionary = bridge.handle_request({
+		"command": "get_design_system",
+		"root": design_root
+	})
+	var update_design_system_result: Dictionary = bridge.handle_request({
+		"command": "update_design_system",
+		"root": design_root,
+		"style": "readable arcade UI with strong contrast",
+		"tokens": {
+			"typography": {
+				"base_font_size": 20
+			}
+		}
+	})
+	var validate_design_system_result: Dictionary = bridge.handle_request({
+		"command": "validate_design_system",
+		"root": design_root
+	})
+	var design_tokens_path := design_root.path_join("design_tokens.json")
+	var export_design_tokens_result: Dictionary = bridge.handle_request({
+		"command": "export_design_tokens",
+		"root": design_root,
+		"path": design_tokens_path,
+		"replace": true
+	})
 	var palette_path := design_root.path_join("palettes/smoke_palette.json")
 	var palette_result: Dictionary = bridge.handle_request({
 		"command": "create_palette",
@@ -569,10 +595,81 @@ func _init() -> void:
 		"theme_path": ui_theme_path,
 		"recursive": true
 	})
+	var ui_template_path := design_root.path_join("ui/main_menu.tscn")
+	var create_ui_template_result: Dictionary = bridge.handle_request({
+		"command": "create_ui_template",
+		"template": "main_menu",
+		"path": ui_template_path,
+		"title": "Smoke Game",
+		"theme_path": ui_theme_path,
+		"replace": true
+	})
+	var inspect_ui_scene_result: Dictionary = bridge.handle_request({
+		"command": "inspect_ui_scene",
+		"scene_path": ui_template_path
+	})
 	var material_pack_result: Dictionary = bridge.handle_request({
 		"command": "create_material_pack",
 		"root": design_root.path_join("materials"),
 		"palette_path": palette_path,
+		"replace": true
+	})
+	var placeholder_sprite_path := design_root.path_join("sprites/smoke_player.png")
+	var placeholder_sprite_result: Dictionary = bridge.handle_request({
+		"command": "create_placeholder_sprite",
+		"path": placeholder_sprite_path,
+		"name": "smoke_player",
+		"role": "player",
+		"width": 32,
+		"height": 32,
+		"replace": true
+	})
+	var placeholder_icons_result: Dictionary = bridge.handle_request({
+		"command": "create_placeholder_icon_set",
+		"root": design_root.path_join("icons"),
+		"icons": [
+			{
+				"name": "heart",
+				"role": "health",
+				"shape": "heart",
+				"color": "#ff6060"
+			},
+			{
+				"name": "coin",
+				"role": "coin",
+				"shape": "circle",
+				"color": "#ffd166"
+			}
+		],
+		"size": 24,
+		"replace": true
+	})
+	var sprite_frames_path := design_root.path_join("sprites/smoke_frames.tres")
+	var sprite_frames_result: Dictionary = bridge.handle_request({
+		"command": "create_sprite_frames",
+		"path": sprite_frames_path,
+		"replace": true,
+		"animations": [
+			{
+				"name": "idle",
+				"frames": [placeholder_sprite_path],
+				"fps": 6.0,
+				"loop": true
+			}
+		]
+	})
+	var texture_import_result: Dictionary = bridge.handle_request({
+		"command": "set_texture_import_preset",
+		"paths": [placeholder_sprite_path],
+		"preset": "pixel_art",
+		"create_sidecar": true,
+		"reimport": true
+	})
+	var asset_manifest_path := design_root.path_join("asset_manifest.json")
+	var asset_manifest_result: Dictionary = bridge.handle_request({
+		"command": "create_asset_manifest",
+		"root": design_root,
+		"path": asset_manifest_path,
 		"replace": true
 	})
 	var inspect_art_result: Dictionary = bridge.handle_request({
@@ -584,6 +681,12 @@ func _init() -> void:
 	var design_status_result: Dictionary = bridge.handle_request({
 		"command": "get_design_status",
 		"root": design_root
+	})
+	var design_lint_result: Dictionary = bridge.handle_request({
+		"command": "run_design_lint",
+		"root": design_root,
+		"scene_path": ui_template_path,
+		"write_report": true
 	})
 	ProjectSettings.set_setting("codex_bridge/raw_api_enabled", true)
 	var raw_classdb_result: Dictionary = bridge.handle_request({
@@ -676,11 +779,26 @@ func _init() -> void:
 	var resource_info := resource_info_data.get("resource", {}) as Dictionary
 	var resource_import_data := resource_import_result.get("data", {}) as Dictionary
 	var resource_import := resource_import_data.get("import", {}) as Dictionary
+	var get_design_system_data := get_design_system_result.get("data", {}) as Dictionary
+	var design_system_payload := get_design_system_data.get("design_system", {}) as Dictionary
+	var validate_design_system_data := validate_design_system_result.get("data", {}) as Dictionary
+	var export_design_tokens_data := export_design_tokens_result.get("data", {}) as Dictionary
+	var create_ui_template_data := create_ui_template_result.get("data", {}) as Dictionary
+	var inspect_ui_scene_data := inspect_ui_scene_result.get("data", {}) as Dictionary
 	var material_pack_data := material_pack_result.get("data", {}) as Dictionary
 	var material_pack_paths := material_pack_data.get("paths", []) as Array
+	var placeholder_sprite_data := placeholder_sprite_result.get("data", {}) as Dictionary
+	var placeholder_icons_data := placeholder_icons_result.get("data", {}) as Dictionary
+	var placeholder_icon_paths := placeholder_icons_data.get("paths", []) as Array
+	var sprite_frames_data := sprite_frames_result.get("data", {}) as Dictionary
+	var sprite_frame_animations := sprite_frames_data.get("animations", []) as Array
+	var texture_import_data := texture_import_result.get("data", {}) as Dictionary
+	var texture_import_updated := texture_import_data.get("updated", []) as Array
+	var asset_manifest_data := asset_manifest_result.get("data", {}) as Dictionary
 	var inspect_art_data := inspect_art_result.get("data", {}) as Dictionary
 	var design_status_data := design_status_result.get("data", {}) as Dictionary
 	var design_status := design_status_data.get("design", {}) as Dictionary
+	var design_lint_data := design_lint_result.get("data", {}) as Dictionary
 	var animation_players_data := animation_players_result.get("data", {}) as Dictionary
 	var animation_players := animation_players_data.get("players", []) as Array
 	var animation_info_data := animation_info_result.get("data", {}) as Dictionary
@@ -716,14 +834,20 @@ func _init() -> void:
 	passed = passed and (capabilities.get("inspector", []) as Array).has("get_inspector_properties")
 	passed = passed and (capabilities.get("animation", []) as Array).has("add_animation_value_key")
 	passed = passed and (capabilities.get("design", []) as Array).has("create_ui_theme")
+	passed = passed and (capabilities.get("design", []) as Array).has("create_ui_template")
+	passed = passed and (capabilities.get("design", []) as Array).has("create_placeholder_sprite")
+	passed = passed and (capabilities.get("design", []) as Array).has("create_asset_manifest")
 	passed = passed and bool(capabilities_v2_result.get("ok", false))
 	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
 	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
 	passed = passed and bool(command_schema_result.get("ok", false))
-	passed = passed and str(command_schema.get("bridge_version", "")) == "0.5.2"
+	passed = passed and str(command_schema.get("bridge_version", "")) == "0.6.0"
 	passed = passed and command_schema_entries.size() > 20
 	passed = passed and _schema_has_command(command_schema_entries, "create_design_system")
 	passed = passed and _schema_has_command(command_schema_entries, "apply_ui_theme")
+	passed = passed and _schema_has_command(command_schema_entries, "run_design_lint")
+	passed = passed and _schema_has_command(command_schema_entries, "create_placeholder_sprite")
+	passed = passed and _schema_has_command(command_schema_entries, "set_texture_import_preset")
 	passed = passed and bool(raw_status_result.get("ok", false))
 	passed = passed and not bool(raw_status.get("enabled", true))
 	passed = passed and not bool(raw_disabled_result.get("ok", true))
@@ -770,7 +894,7 @@ func _init() -> void:
 	passed = passed and bool(scan_resources_result.get("ok", false))
 	passed = passed and fake_editor.filesystem.scan_sources_count == 1
 	passed = passed and bool(reimport_resources_result.get("ok", false))
-	passed = passed and fake_editor.filesystem.reimported_paths.has("res://tests/fixtures/fixture_scene.tscn")
+	passed = passed and reimported_paths_after_resource_smoke.has("res://tests/fixtures/fixture_scene.tscn")
 	passed = passed and bool(animation_players_result.get("ok", false))
 	passed = passed and animation_players.size() == 1
 	passed = passed and bool(create_animation_result.get("ok", false))
@@ -822,15 +946,43 @@ func _init() -> void:
 	passed = passed and bool(FileAccess.file_exists(theme_path))
 	passed = passed and bool(design_system_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(design_root.path_join("design_system.json")))
+	passed = passed and bool(get_design_system_result.get("ok", false))
+	passed = passed and int(design_system_payload.get("schema_version", 0)) == 2
+	passed = passed and bool(update_design_system_result.get("ok", false))
+	passed = passed and bool(validate_design_system_result.get("ok", false))
+	passed = passed and bool(validate_design_system_data.get("valid", false))
+	passed = passed and bool(export_design_tokens_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(str(export_design_tokens_data.get("path", ""))))
 	passed = passed and bool(palette_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(palette_path))
 	passed = passed and bool(ui_theme_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(ui_theme_path))
 	passed = passed and bool(apply_ui_theme_result.get("ok", false))
 	passed = passed and design_panel.theme != null
+	passed = passed and bool(create_ui_template_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(ui_template_path))
+	passed = passed and str(create_ui_template_data.get("template", "")) == "main_menu"
+	passed = passed and bool(inspect_ui_scene_result.get("ok", false))
+	passed = passed and int(inspect_ui_scene_data.get("control_count", 0)) > 0
 	passed = passed and bool(material_pack_result.get("ok", false))
 	passed = passed and material_pack_paths.size() >= 2
 	passed = passed and bool(FileAccess.file_exists(str(material_pack_data.get("shader_path", ""))))
+	passed = passed and bool(placeholder_sprite_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(placeholder_sprite_path))
+	passed = passed and str(placeholder_sprite_data.get("role", "")) == "player"
+	passed = passed and bool(placeholder_icons_result.get("ok", false))
+	passed = passed and placeholder_icon_paths.size() == 2
+	passed = passed and bool(FileAccess.file_exists(str(placeholder_icon_paths[0])))
+	passed = passed and bool(sprite_frames_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(sprite_frames_path))
+	passed = passed and sprite_frame_animations.size() == 1
+	passed = passed and bool(texture_import_result.get("ok", false))
+	passed = passed and texture_import_updated.size() == 1
+	passed = passed and bool(FileAccess.file_exists(placeholder_sprite_path + ".import"))
+	passed = passed and fake_editor.filesystem.reimported_paths.has(placeholder_sprite_path)
+	passed = passed and bool(asset_manifest_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(asset_manifest_path))
+	passed = passed and int(asset_manifest_data.get("asset_count", 0)) >= 1
 	passed = passed and bool(inspect_art_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(str(inspect_art_data.get("report_path", ""))))
 	passed = passed and bool(design_status_result.get("ok", false))
@@ -838,6 +990,12 @@ func _init() -> void:
 	passed = passed and int(design_status.get("palette_count", 0)) >= 1
 	passed = passed and int(design_status.get("theme_count", 0)) >= 1
 	passed = passed and int(design_status.get("material_count", 0)) >= 1
+	passed = passed and int(design_status.get("sprite_count", 0)) >= 1
+	passed = passed and int(design_status.get("icon_count", 0)) >= 1
+	passed = passed and int(design_status.get("asset_manifest_count", 0)) >= 1
+	passed = passed and int(design_status.get("report_count", 0)) >= 1
+	passed = passed and bool(design_lint_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(str(design_lint_data.get("report_path", ""))))
 	passed = passed and bool(raw_classdb_result.get("ok", false))
 	passed = passed and bool((raw_classdb_result.get("data", {}) as Dictionary).get("exists", false))
 	passed = passed and bool(raw_object_result.get("ok", false))

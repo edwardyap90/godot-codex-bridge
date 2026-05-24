@@ -52,6 +52,8 @@ This design avoids port conflicts when multiple Godot projects are open. Optiona
 - Extended safe scene actions for node rename, duplicate, remove, reparent, ordering, owner, groups, unique names, and metadata.
 - Resource creation, saving, property editing, material helpers, and theme helpers for `.tres` and `.res` assets.
 - Art Direction Kit commands for palettes, UI themes, tint material packs, and art asset reports.
+- Visual Design Control Plane commands for Design System v2, UI template scenes, UI layout inspection, and design lint reports.
+- Art pipeline helpers for placeholder sprites/icons, `SpriteFrames`, texture import presets, and asset manifests.
 - Controlled Raw API mode for allowlisted Godot editor calls. It is disabled by default and never executes arbitrary scripts.
 
 ## Installation
@@ -192,7 +194,7 @@ tools/godot_bridge_send.sh play_main_scene
 - Project Settings: `get_project_settings`, `get_project_setting`, `set_project_setting`, `get_common_project_settings`, `set_common_project_settings`, `get_autoloads`, `add_autoload`, `remove_autoload`, `get_layer_names`, `set_layer_name`
 - Input Map: `get_input_actions`, `add_input_action`, `remove_input_action`
 - Resources: `get_resource_files`, `get_resource_info`, `get_resource_import_info`, `create_resource`, `set_resource_property`, `save_resource`, `create_material`, `create_theme`, `scan_resource_filesystem`, `reimport_resources`
-- Design and art direction: `get_design_status`, `create_design_system`, `create_palette`, `create_ui_theme`, `apply_ui_theme`, `create_material_pack`, `inspect_art_assets`
+- Design and art direction: `get_design_status`, `get_design_system`, `create_design_system`, `update_design_system`, `validate_design_system`, `export_design_tokens`, `create_palette`, `create_ui_theme`, `apply_ui_theme`, `create_ui_template`, `inspect_ui_scene`, `create_material_pack`, `create_placeholder_sprite`, `create_placeholder_icon_set`, `create_sprite_frames`, `set_texture_import_preset`, `create_asset_manifest`, `inspect_art_assets`, `run_design_lint`
 - Animation: `get_animation_players`, `get_animation_player_info`, `create_animation`, `set_animation_properties`, `add_animation_value_key`
 - Validation: `run_check_only`, `run_project_headless`, `get_last_run_report`
 - Controlled Raw API: `get_raw_mode_status`, `raw_editor_call`, `raw_object_call`, `raw_classdb_query`, `raw_project_call`

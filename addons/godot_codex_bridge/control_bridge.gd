@@ -14,7 +14,7 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 const CONTROL_PLANE_SCHEMA_VERSION := 2
 const RAW_AUDIT_LIMIT := 100
-const BRIDGE_VERSION := "0.5.2"
+const BRIDGE_VERSION := "0.6.0"
 const DESIGN_IMAGE_EXTENSIONS := ["png", "jpg", "jpeg", "webp", "svg", "tga", "bmp", "exr", "hdr"]
 const DESIGN_AUDIO_EXTENSIONS := ["wav", "ogg", "mp3"]
 const DESIGN_FONT_EXTENSIONS := ["ttf", "otf", "woff", "woff2"]
@@ -256,18 +256,42 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _create_theme(request)
 		"get_design_status":
 			return _get_design_status(request)
+		"get_design_system":
+			return _get_design_system(request)
 		"create_design_system":
 			return _create_design_system(request)
+		"update_design_system":
+			return _update_design_system(request)
+		"validate_design_system":
+			return _validate_design_system(request)
+		"export_design_tokens":
+			return _export_design_tokens(request)
 		"create_palette":
 			return _create_palette(request)
 		"create_ui_theme":
 			return _create_ui_theme(request)
 		"apply_ui_theme":
 			return _apply_ui_theme(request)
+		"create_ui_template":
+			return _create_ui_template(request)
+		"inspect_ui_scene":
+			return _inspect_ui_scene(request)
 		"create_material_pack":
 			return _create_material_pack(request)
+		"create_placeholder_sprite":
+			return _create_placeholder_sprite(request)
+		"create_placeholder_icon_set":
+			return _create_placeholder_icon_set(request)
+		"create_sprite_frames":
+			return _create_sprite_frames(request)
+		"set_texture_import_preset":
+			return _set_texture_import_preset(request)
+		"create_asset_manifest":
+			return _create_asset_manifest(request)
 		"inspect_art_assets":
 			return _inspect_art_assets(request)
+		"run_design_lint":
+			return _run_design_lint(request)
 		"scan_resource_filesystem":
 			return _scan_resource_filesystem(request)
 		"reimport_resources":
@@ -463,23 +487,47 @@ func _editor_capabilities() -> Dictionary:
 			"create_material",
 			"create_theme",
 			"get_design_status",
+			"get_design_system",
 			"create_design_system",
+			"update_design_system",
+			"validate_design_system",
+			"export_design_tokens",
 			"create_palette",
 			"create_ui_theme",
 			"apply_ui_theme",
+			"create_ui_template",
+			"inspect_ui_scene",
 			"create_material_pack",
+			"create_placeholder_sprite",
+			"create_placeholder_icon_set",
+			"create_sprite_frames",
+			"set_texture_import_preset",
+			"create_asset_manifest",
 			"inspect_art_assets",
+			"run_design_lint",
 			"scan_resource_filesystem",
 			"reimport_resources"
 		],
 		"design": [
 			"get_design_status",
+			"get_design_system",
 			"create_design_system",
+			"update_design_system",
+			"validate_design_system",
+			"export_design_tokens",
 			"create_palette",
 			"create_ui_theme",
 			"apply_ui_theme",
+			"create_ui_template",
+			"inspect_ui_scene",
 			"create_material_pack",
-			"inspect_art_assets"
+			"create_placeholder_sprite",
+			"create_placeholder_icon_set",
+			"create_sprite_frames",
+			"set_texture_import_preset",
+			"create_asset_manifest",
+			"inspect_art_assets",
+			"run_design_lint"
 		],
 		"animation": [
 			"get_animation_players",
@@ -519,10 +567,21 @@ func _editor_capabilities() -> Dictionary:
 			"create_material",
 			"create_theme",
 			"create_design_system",
+			"update_design_system",
+			"validate_design_system",
+			"export_design_tokens",
 			"create_palette",
 			"create_ui_theme",
+			"create_ui_template",
+			"inspect_ui_scene",
 			"create_material_pack",
-			"inspect_art_assets"
+			"create_placeholder_sprite",
+			"create_placeholder_icon_set",
+			"create_sprite_frames",
+			"set_texture_import_preset",
+			"create_asset_manifest",
+			"inspect_art_assets",
+			"run_design_lint"
 		],
 		"schema": [
 			"get_command_schema"
@@ -634,12 +693,24 @@ func _command_schema_entries() -> Array:
 		_command_schema_entry("create_material", "resource", true, ["path"], ["material_type", "replace", "properties"]),
 		_command_schema_entry("create_theme", "resource", true, ["path"], ["replace", "colors", "constants", "font_sizes"]),
 		_command_schema_entry("get_design_status", "design", false, [], ["root"]),
-		_command_schema_entry("create_design_system", "design", true, [], ["root", "name", "style", "palette", "replace"]),
+		_command_schema_entry("get_design_system", "design", false, [], ["root"]),
+		_command_schema_entry("create_design_system", "design", true, [], ["root", "name", "style", "palette", "tokens", "asset_roles", "replace"]),
+		_command_schema_entry("update_design_system", "design", true, [], ["root", "updates", "tokens", "asset_roles", "style", "create_if_missing"]),
+		_command_schema_entry("validate_design_system", "design", false, [], ["root"]),
+		_command_schema_entry("export_design_tokens", "design", true, [], ["root", "path", "replace"]),
 		_command_schema_entry("create_palette", "design", true, [], ["path", "root", "name", "colors", "replace"]),
 		_command_schema_entry("create_ui_theme", "design", true, [], ["path", "palette_path", "palette", "colors", "replace"]),
 		_command_schema_entry("apply_ui_theme", "design", true, ["theme_path"], ["node_path", "recursive"]),
+		_command_schema_entry("create_ui_template", "design", true, ["template"], ["path", "root", "title", "theme_path", "replace", "open_after"]),
+		_command_schema_entry("inspect_ui_scene", "design", false, [], ["node_path", "scene_path", "min_touch_size"]),
 		_command_schema_entry("create_material_pack", "design", true, [], ["root", "palette_path", "palette", "materials", "replace"]),
+		_command_schema_entry("create_placeholder_sprite", "design", true, [], ["path", "root", "name", "role", "width", "height", "shape", "color", "replace"]),
+		_command_schema_entry("create_placeholder_icon_set", "design", true, [], ["root", "icons", "size", "palette_path", "replace"]),
+		_command_schema_entry("create_sprite_frames", "design", true, ["path", "animations"], ["replace"]),
+		_command_schema_entry("set_texture_import_preset", "design", true, ["paths"], ["preset", "settings", "create_sidecar", "reimport"]),
+		_command_schema_entry("create_asset_manifest", "design", true, [], ["root", "path", "replace"]),
 		_command_schema_entry("inspect_art_assets", "design", true, [], ["root", "extensions", "max_count", "write_report"]),
+		_command_schema_entry("run_design_lint", "design", true, [], ["root", "node_path", "scene_path", "write_report"]),
 		_command_schema_entry("set_resource_property", "resource", true, ["path", "property", "value"], []),
 		_command_schema_entry("save_resource", "resource", true, ["path"], []),
 		_command_schema_entry("scan_resource_filesystem", "import", false, [], ["scan_sources"]),
@@ -1245,14 +1316,36 @@ func _request_summary(command: String, data: Dictionary) -> String:
 			return "Created " + str(data.get("path", ""))
 		"create_design_system":
 			return "Created design system at " + str(data.get("root", ""))
+		"update_design_system":
+			return "Updated design system at " + str(data.get("path", ""))
+		"validate_design_system":
+			return "Design system " + ("valid" if bool(data.get("valid", false)) else "has issues")
+		"export_design_tokens":
+			return "Exported design tokens to " + str(data.get("path", ""))
 		"create_palette", "create_ui_theme":
 			return "Created " + str(data.get("path", ""))
 		"apply_ui_theme":
 			return "Applied theme to " + str(data.get("applied_count", 0)) + " Control node(s)"
+		"create_ui_template":
+			return "Created " + str(data.get("template", "")) + " UI template"
+		"inspect_ui_scene":
+			return "Inspected " + str((data.get("controls", []) as Array).size()) + " Control node(s)"
 		"create_material_pack":
 			return "Created " + str((data.get("paths", []) as Array).size()) + " material resource(s)"
+		"create_placeholder_sprite":
+			return "Created placeholder sprite " + str(data.get("path", ""))
+		"create_placeholder_icon_set":
+			return "Created " + str((data.get("paths", []) as Array).size()) + " placeholder icon(s)"
+		"create_sprite_frames":
+			return "Created SpriteFrames " + str(data.get("path", ""))
+		"set_texture_import_preset":
+			return "Updated " + str((data.get("updated", []) as Array).size()) + " texture import preset(s)"
+		"create_asset_manifest":
+			return "Created asset manifest " + str(data.get("path", ""))
 		"inspect_art_assets":
 			return "Inspected " + str((data.get("files", []) as Array).size()) + " art asset(s)"
+		"run_design_lint":
+			return "Design lint found " + str(data.get("issue_count", 0)) + " issue(s)"
 		"get_queue_summary":
 			return str(data.get("pending_count", 0)) + " pending batches / " + str(data.get("action_count", 0)) + " actions"
 		"play_main_scene", "play_current_scene", "play_custom_scene", "stop_playing_scene", "stop_playing":
@@ -1616,6 +1709,20 @@ func _get_design_status(request: Dictionary) -> Dictionary:
 	})
 
 
+func _get_design_system(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Design root is invalid or protected.")
+	var path := _design_system_path(root)
+	var payload := _read_json_file(path)
+	return _response(true, "ok", {
+		"root": root,
+		"path": path,
+		"exists": FileAccess.file_exists(path),
+		"design_system": payload
+	})
+
+
 func _create_design_system(request: Dictionary) -> Dictionary:
 	var root := _normalize_design_root(str(request.get("root", request.get("path", "res://art"))))
 	if root.is_empty():
@@ -1626,11 +1733,14 @@ func _create_design_system(request: Dictionary) -> Dictionary:
 		name = "Game Art"
 	var style := str(request.get("style", request.get("art_direction", "playful game UI"))).strip_edges()
 	var replace := bool(request.get("replace", false))
-	var system_path := root.path_join("design_system.json")
+	var system_path := _design_system_path(root)
 	if FileAccess.file_exists(system_path) and not replace:
 		return _response(false, "Design system already exists: " + system_path)
 
 	var palette_entries := _design_palette_entries(request.get("palette", request.get("colors", {})))
+	var tokens := _default_design_tokens(palette_entries, request)
+	if request.has("tokens") and typeof(request.get("tokens")) == TYPE_DICTIONARY:
+		_deep_merge_dictionary(tokens, request.get("tokens") as Dictionary)
 	var directories := [
 		root,
 		root.path_join("palettes"),
@@ -1667,12 +1777,16 @@ func _create_design_system(request: Dictionary) -> Dictionary:
 			})
 
 	var payload := {
-		"schema_version": 1,
+		"schema_version": 2,
 		"name": name,
 		"style": style,
 		"root": root,
 		"created_at": Time.get_datetime_string_from_system(),
+		"updated_at": Time.get_datetime_string_from_system(),
 		"palette": _design_palette_payload(palette_entries),
+		"tokens": tokens,
+		"asset_roles": request.get("asset_roles", _default_design_asset_roles()),
+		"ui_templates": ["main_menu", "hud", "pause_menu"],
 		"directories": directories,
 		"notes": [
 			"Keep generated art, themes, palettes, and reports under this project-local root.",
@@ -1697,6 +1811,112 @@ func _create_design_system(request: Dictionary) -> Dictionary:
 		}),
 		"snapshot": _snapshot_summary(snapshot)
 	}, [], [system_path])
+
+
+func _update_design_system(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Design root is invalid or protected.")
+	var path := _design_system_path(root)
+	var exists := FileAccess.file_exists(path)
+	if not exists and not bool(request.get("create_if_missing", false)):
+		return _response(false, "Design system does not exist: " + path)
+
+	var payload := _read_json_file(path) if exists else _default_design_system_payload(root, request)
+	if payload.is_empty():
+		payload = _default_design_system_payload(root, request)
+	var updates = request.get("updates", {})
+	if typeof(updates) == TYPE_DICTIONARY:
+		_deep_merge_dictionary(payload, updates as Dictionary)
+	if request.has("style"):
+		payload["style"] = str(request.get("style", ""))
+	if request.has("tokens") and typeof(request.get("tokens")) == TYPE_DICTIONARY:
+		if not payload.has("tokens") or typeof(payload.get("tokens")) != TYPE_DICTIONARY:
+			payload["tokens"] = {}
+		_deep_merge_dictionary(payload["tokens"] as Dictionary, request.get("tokens") as Dictionary)
+	if request.has("asset_roles"):
+		payload["asset_roles"] = request.get("asset_roles")
+	payload["schema_version"] = 2
+	payload["root"] = root
+	payload["updated_at"] = Time.get_datetime_string_from_system()
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], "update_design_system " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; design system was not updated.", {
+			"snapshot": snapshot
+		})
+	var write_error := _write_json_file(path, payload)
+	if write_error != OK:
+		return _response(false, "Failed to write design system: " + error_string(write_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Design system updated.", {
+		"root": root,
+		"path": path,
+		"design_system": payload,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _validate_design_system(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Design root is invalid or protected.")
+	return _response(true, "Design system validation completed.", _design_system_validation(root, request))
+
+
+func _export_design_tokens(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Design root is invalid or protected.")
+	var design_system := _read_json_file(_design_system_path(root))
+	if design_system.is_empty():
+		return _response(false, "Design system does not exist: " + _design_system_path(root))
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("design_tokens.json"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Design tokens path is invalid or protected.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Design tokens already exist: " + path)
+
+	var tokens := design_system.get("tokens", {})
+	if typeof(tokens) != TYPE_DICTIONARY or (tokens as Dictionary).is_empty():
+		tokens = _default_design_tokens(_design_palette_entries(design_system), request)
+	var payload := {
+		"schema_version": 1,
+		"source": _design_system_path(root),
+		"generated_at": Time.get_datetime_string_from_system(),
+		"tokens": tokens
+	}
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], "export_design_tokens " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; tokens were not exported.", {
+			"snapshot": snapshot
+		})
+	var write_error := _write_json_file(path, payload)
+	if write_error != OK:
+		return _response(false, "Failed to write design tokens: " + error_string(write_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Design tokens exported.", {
+		"root": root,
+		"path": path,
+		"tokens": tokens,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
 
 
 func _create_palette(request: Dictionary) -> Dictionary:
@@ -1833,6 +2053,86 @@ func _apply_ui_theme(request: Dictionary) -> Dictionary:
 	})
 
 
+func _create_ui_template(request: Dictionary) -> Dictionary:
+	var template := _safe_design_slug(str(request.get("template", request.get("name", ""))), "")
+	if not (template in ["main_menu", "hud", "pause_menu"]):
+		return _response(false, "Unsupported UI template. Use main_menu, hud, or pause_menu.")
+	var root_dir := _normalize_design_root(str(request.get("root", "res://ui")))
+	if root_dir.is_empty():
+		return _response(false, "UI template root is invalid or protected.")
+	var path := _normalize_resource_path(str(request.get("path", root_dir.path_join(template + ".tscn"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "UI template path is invalid or protected.")
+	if path.get_extension().to_lower() != "tscn":
+		return _response(false, "UI template path must end with .tscn.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "UI template scene already exists: " + path)
+
+	var theme: Theme = null
+	var theme_path := _normalize_resource_path(str(request.get("theme_path", "")))
+	if not theme_path.is_empty():
+		var loaded_theme = load(theme_path)
+		if not loaded_theme is Theme:
+			return _response(false, "Cannot load UI theme: " + theme_path)
+		theme = loaded_theme as Theme
+
+	var scene_root := _build_ui_template_scene(template, request, theme)
+	var packed_scene := PackedScene.new()
+	var pack_error := packed_scene.pack(scene_root)
+	if pack_error != OK:
+		scene_root.free()
+		return _response(false, "Failed to pack UI template: " + error_string(pack_error))
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		},
+		{
+			"type": "make_dir",
+			"path": path.get_base_dir()
+		}
+	], "create_ui_template " + path)
+	if not bool(snapshot.get("ok", true)):
+		scene_root.free()
+		return _response(false, "Failed to create pre-change snapshot; UI template was not saved.", {
+			"snapshot": snapshot
+		})
+
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		scene_root.free()
+		return _response(false, "Failed to create UI template directory: " + error_string(dir_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var save_error := ResourceSaver.save(packed_scene, path)
+	var node_count := _count_nodes(scene_root)
+	scene_root.free()
+	if save_error != OK:
+		return _response(false, "Failed to save UI template: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	if bool(request.get("open_after", false)) and editor_interface != null and editor_interface.has_method("open_scene_from_path"):
+		editor_interface.open_scene_from_path(path)
+	return _response(true, "UI template created.", {
+		"template": template,
+		"path": path,
+		"node_count": node_count,
+		"theme_path": theme_path,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _inspect_ui_scene(request: Dictionary) -> Dictionary:
+	var inspection := _inspect_ui_scene_data(request)
+	if not bool(inspection.get("ok", false)):
+		return _response(false, str(inspection.get("message", "")))
+	return _response(true, "UI scene inspected.", inspection)
+
+
 func _create_material_pack(request: Dictionary) -> Dictionary:
 	var root := _normalize_design_root(str(request.get("root", "res://art/materials")))
 	if root.is_empty():
@@ -1923,6 +2223,340 @@ func _create_material_pack(request: Dictionary) -> Dictionary:
 	}, [], saved)
 
 
+func _create_placeholder_sprite(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art/sprites")))
+	if root.is_empty():
+		return _response(false, "Placeholder sprite root is invalid or protected.")
+	var name := str(request.get("name", request.get("role", "sprite"))).strip_edges()
+	if name.is_empty():
+		name = "sprite"
+	var role := _safe_design_slug(str(request.get("role", name)), "sprite")
+	var path := _normalize_resource_path(str(request.get("path", root.path_join(_safe_design_slug(name, "sprite") + ".png"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Placeholder sprite path is invalid or protected.")
+	if path.get_extension().to_lower() != "png":
+		return _response(false, "Placeholder sprite path must end with .png.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Placeholder sprite already exists: " + path)
+
+	var width := mini(maxi(int(request.get("width", request.get("size", 64))), 8), 1024)
+	var height := mini(maxi(int(request.get("height", request.get("size", 64))), 8), 1024)
+	var shape := _safe_design_slug(str(request.get("shape", role)), "diamond")
+	var fallback_color := _placeholder_color_for_role(role)
+	var color := _decode_design_color(request.get("color", fallback_color), fallback_color)
+	var outline := _decode_design_color(request.get("outline_color", "#edf5ff"), Color(0.93, 0.96, 1.0, 1.0))
+	var image := _build_placeholder_image(width, height, shape, color, outline)
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		},
+		{
+			"type": "make_dir",
+			"path": path.get_base_dir()
+		}
+	], "create_placeholder_sprite " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; placeholder sprite was not saved.", {
+			"snapshot": snapshot
+		})
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create sprite directory: " + error_string(dir_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var save_error := image.save_png(path)
+	if save_error != OK:
+		return _response(false, "Failed to save placeholder sprite: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Placeholder sprite created.", {
+		"path": path,
+		"role": role,
+		"width": width,
+		"height": height,
+		"shape": shape,
+		"color": _encode_value(color),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _create_placeholder_icon_set(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art/icons")))
+	if root.is_empty():
+		return _response(false, "Placeholder icon root is invalid or protected.")
+	var replace := bool(request.get("replace", false))
+	var size := mini(maxi(int(request.get("size", 48)), 8), 512)
+	var palette_result := _design_palette_entries_from_request(request)
+	if not bool(palette_result.get("ok", false)):
+		return _response(false, str(palette_result.get("message", "")))
+	var palette_map := _design_palette_color_map(palette_result.get("palette", []) as Array)
+	var icon_specs := _placeholder_icon_specs(request.get("icons", []), palette_map)
+	if icon_specs.is_empty():
+		return _response(false, "No placeholder icons were provided.")
+
+	var paths: Array = []
+	for spec in icon_specs:
+		if typeof(spec) != TYPE_DICTIONARY:
+			continue
+		var spec_dict := spec as Dictionary
+		var path := root.path_join(_safe_design_slug(str(spec_dict.get("name", "icon")), "icon") + ".png")
+		if FileAccess.file_exists(path) and not replace:
+			return _response(false, "Placeholder icon already exists: " + path)
+		spec_dict["path"] = path
+		paths.append(path)
+
+	var snapshot_actions: Array = [
+		{
+			"type": "make_dir",
+			"path": root
+		}
+	]
+	for path in paths:
+		snapshot_actions.append({
+			"type": "write_file",
+			"path": str(path)
+		})
+	var snapshot := _create_snapshot(snapshot_actions, "create_placeholder_icon_set " + root)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; icons were not saved.", {
+			"snapshot": snapshot
+		})
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(root))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create icon directory: " + error_string(dir_error), {
+			"root": root,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+
+	var saved: Array = []
+	var icons: Array = []
+	var errors: Array = []
+	for spec in icon_specs:
+		var spec_dict := spec as Dictionary
+		var icon_path := str(spec_dict.get("path", ""))
+		var image := _build_placeholder_image(size, size, str(spec_dict.get("shape", "diamond")), spec_dict.get("color", Color.WHITE), Color(0.93, 0.96, 1.0, 1.0))
+		var save_error := image.save_png(icon_path)
+		if save_error == OK:
+			saved.append(icon_path)
+			icons.append({
+				"name": str(spec_dict.get("name", "")),
+				"path": icon_path,
+				"shape": str(spec_dict.get("shape", "")),
+				"color": _encode_value(spec_dict.get("color", Color.WHITE))
+			})
+		else:
+			errors.append(icon_path + " -> " + error_string(save_error))
+	_refresh_editor_filesystem()
+	return _response(errors.is_empty(), "Placeholder icon set created." if errors.is_empty() else "Placeholder icon set had errors.", {
+		"root": root,
+		"paths": saved,
+		"icons": icons,
+		"errors": errors,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], saved)
+
+
+func _create_sprite_frames(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("resource_path", ""))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "SpriteFrames path is invalid or protected.")
+	if not (path.get_extension().to_lower() in ["tres", "res"]):
+		return _response(false, "SpriteFrames path must end with .tres or .res.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "SpriteFrames already exists: " + path)
+	var raw_animations := request.get("animations", [])
+	if typeof(raw_animations) != TYPE_ARRAY or (raw_animations as Array).is_empty():
+		return _response(false, "create_sprite_frames requires a non-empty animations array.")
+
+	var sprite_frames := SpriteFrames.new()
+	if sprite_frames.has_animation("default"):
+		sprite_frames.remove_animation("default")
+	var animations: Array = []
+	var dependencies: Array = []
+	for item in raw_animations as Array:
+		if typeof(item) != TYPE_DICTIONARY:
+			return _response(false, "Animation spec must be a Dictionary.")
+		var spec := item as Dictionary
+		var animation_name := _safe_design_slug(str(spec.get("name", "default")), "default")
+		var frame_paths := _normalize_resource_paths(spec.get("frames", spec.get("paths", [])))
+		if frame_paths.is_empty():
+			return _response(false, "Animation has no valid frame paths: " + animation_name)
+		if not sprite_frames.has_animation(animation_name):
+			sprite_frames.add_animation(animation_name)
+		sprite_frames.set_animation_speed(animation_name, maxf(float(spec.get("fps", spec.get("speed", 8.0))), 0.1))
+		sprite_frames.set_animation_loop(animation_name, bool(spec.get("loop", true)))
+		var frame_count := 0
+		for frame_path in frame_paths:
+			var texture := _texture_from_image_path(frame_path)
+			if texture == null:
+				return _response(false, "Cannot load frame texture: " + frame_path)
+			sprite_frames.add_frame(animation_name, texture)
+			frame_count += 1
+			if not dependencies.has(frame_path):
+				dependencies.append(frame_path)
+		animations.append({
+			"name": animation_name,
+			"frame_count": frame_count,
+			"fps": sprite_frames.get_animation_speed(animation_name),
+			"loop": sprite_frames.get_animation_loop(animation_name)
+		})
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		},
+		{
+			"type": "make_dir",
+			"path": path.get_base_dir()
+		}
+	], "create_sprite_frames " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; SpriteFrames were not saved.", {
+			"snapshot": snapshot
+		})
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create SpriteFrames directory: " + error_string(dir_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	sprite_frames.resource_path = path
+	var save_error := ResourceSaver.save(sprite_frames, path)
+	if save_error != OK:
+		return _response(false, "Failed to save SpriteFrames: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "SpriteFrames created.", {
+		"path": path,
+		"animations": animations,
+		"dependencies": dependencies,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
+func _set_texture_import_preset(request: Dictionary) -> Dictionary:
+	var paths := _normalize_resource_paths(request.get("paths", request.get("path", [])))
+	if paths.is_empty():
+		return _response(false, "set_texture_import_preset requires one or more paths.")
+	var preset := _safe_design_slug(str(request.get("preset", "pixel_2d")), "pixel_2d")
+	var settings := _texture_import_preset_settings(preset)
+	if request.has("settings") and typeof(request.get("settings")) == TYPE_DICTIONARY:
+		_deep_merge_dictionary(settings, request.get("settings") as Dictionary)
+	var create_sidecar := bool(request.get("create_sidecar", true))
+	var changed_paths: Array = []
+	var updated: Array = []
+	var errors: Array = []
+	var snapshot_actions: Array = []
+	for path_item in paths:
+		var path := str(path_item)
+		if not FileAccess.file_exists(path):
+			errors.append(path + " -> source texture is missing")
+			continue
+		var extension := path.get_extension().to_lower()
+		if not (extension in DESIGN_IMAGE_EXTENSIONS):
+			errors.append(path + " -> not a supported image texture")
+			continue
+		var sidecar := path + ".import"
+		if not FileAccess.file_exists(sidecar) and not create_sidecar:
+			errors.append(sidecar + " -> import sidecar is missing")
+			continue
+		snapshot_actions.append({
+			"type": "write_file",
+			"path": sidecar
+		})
+	if not errors.is_empty():
+		return _response(false, "Texture import preset found invalid paths.", {
+			"errors": errors
+		})
+	var snapshot := _create_snapshot(snapshot_actions, "set_texture_import_preset " + preset)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; import presets were not changed.", {
+			"snapshot": snapshot
+		})
+	for path_item in paths:
+		var path := str(path_item)
+		var sidecar := path + ".import"
+		var result := _write_texture_import_sidecar(path, sidecar, settings)
+		if int(result.get("error", OK)) == OK:
+			updated.append({
+				"path": path,
+				"import_path": sidecar,
+				"preset": preset
+			})
+			changed_paths.append(sidecar)
+		else:
+			errors.append(sidecar + " -> " + error_string(int(result.get("error", FAILED))))
+	var reimport_requested := false
+	if bool(request.get("reimport", false)):
+		var filesystem = _editor_resource_filesystem()
+		if filesystem != null and filesystem.has_method("reimport_files"):
+			filesystem.reimport_files(PackedStringArray(paths))
+			reimport_requested = true
+		_refresh_editor_filesystem()
+	return _response(errors.is_empty(), "Texture import presets updated." if errors.is_empty() else "Texture import presets had errors.", {
+		"preset": preset,
+		"settings": settings,
+		"updated": updated,
+		"errors": errors,
+		"reimport_requested": reimport_requested,
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], changed_paths)
+
+
+func _create_asset_manifest(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Asset manifest root is invalid or protected.")
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("asset_manifest.json"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Asset manifest path is invalid or protected.")
+	if path.get_extension().to_lower() != "json":
+		return _response(false, "Asset manifest path must end with .json.")
+	if FileAccess.file_exists(path) and not bool(request.get("replace", false)):
+		return _response(false, "Asset manifest already exists: " + path)
+	var asset_data := _design_asset_report_data(root, request)
+	var payload := {
+		"schema_version": 1,
+		"root": root,
+		"generated_at": Time.get_datetime_string_from_system(),
+		"counts": asset_data.get("counts", {}),
+		"assets": _asset_manifest_entries(asset_data.get("files", []) as Array)
+	}
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		}
+	], "create_asset_manifest " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; asset manifest was not saved.", {
+			"snapshot": snapshot
+		})
+	var write_error := _write_json_file(path, payload)
+	if write_error != OK:
+		return _response(false, "Failed to write asset manifest: " + error_string(write_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Asset manifest created.", {
+		"path": path,
+		"root": root,
+		"asset_count": (payload.get("assets", []) as Array).size(),
+		"counts": payload.get("counts", {}),
+		"issues": asset_data.get("issues", []),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path])
+
+
 func _inspect_art_assets(request: Dictionary) -> Dictionary:
 	var root := _normalize_design_root(str(request.get("root", "res://")))
 	if root.is_empty():
@@ -1985,6 +2619,66 @@ func _inspect_art_assets(request: Dictionary) -> Dictionary:
 	return _response(true, "Art assets inspected.", data, [], changed_paths)
 
 
+func _run_design_lint(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Design root is invalid or protected.")
+	var validation := _design_system_validation(root, request)
+	var ui_inspection := _inspect_ui_scene_data(request)
+	var asset_data := _design_asset_report_data(root, request)
+	var issues: Array = []
+	issues.append_array(validation.get("issues", []) as Array)
+	if bool(ui_inspection.get("ok", false)):
+		issues.append_array(ui_inspection.get("issues", []) as Array)
+	else:
+		issues.append({
+			"severity": "info",
+			"type": "ui_scene_unavailable",
+			"path": "",
+			"message": str(ui_inspection.get("message", "No UI scene available."))
+		})
+	issues.append_array(asset_data.get("issues", []) as Array)
+	var summary := _design_issue_summary(issues)
+	var data := {
+		"root": root,
+		"valid": int(summary.get("error", 0)) == 0,
+		"issue_count": issues.size(),
+		"summary": summary,
+		"issues": issues,
+		"design_system": validation,
+		"ui": ui_inspection,
+		"assets": asset_data
+	}
+	var changed_paths: Array = []
+	if bool(request.get("write_report", false)):
+		var report_path := _normalize_resource_path(str(request.get("report_path", root.path_join("reports").path_join("design_lint_report.json"))))
+		if report_path.is_empty() or not _design_path_allowed(report_path):
+			return _response(false, "Design lint report path is invalid or protected.")
+		var snapshot := _create_snapshot([
+			{
+				"type": "write_file",
+				"path": report_path
+			}
+		], "run_design_lint " + root)
+		if not bool(snapshot.get("ok", true)):
+			return _response(false, "Failed to create pre-change snapshot; lint report was not written.", {
+				"snapshot": snapshot
+			})
+		var payload := data.duplicate(true)
+		payload["generated_at"] = Time.get_datetime_string_from_system()
+		var write_error := _write_json_file(report_path, payload)
+		if write_error != OK:
+			return _response(false, "Failed to write design lint report: " + error_string(write_error), {
+				"path": report_path,
+				"snapshot": _snapshot_summary(snapshot)
+			})
+		data["report_path"] = report_path
+		data["snapshot"] = _snapshot_summary(snapshot)
+		changed_paths.append(report_path)
+		_refresh_editor_filesystem()
+	return _response(true, "Design lint completed.", data, [], changed_paths)
+
+
 func _design_status(request: Dictionary) -> Dictionary:
 	var root := _normalize_design_root(str(request.get("root", "res://art")))
 	if root.is_empty():
@@ -1998,15 +2692,27 @@ func _design_status(request: Dictionary) -> Dictionary:
 	var theme_files: Array = []
 	var material_files: Array = []
 	var image_files: Array = []
+	var sprite_files: Array = []
+	var icon_files: Array = []
 	var audio_files: Array = []
 	var font_files: Array = []
+	var report_files: Array = []
+	var manifest_candidates: Array = []
+	var asset_manifests: Array = []
 	_collect_resource_file_infos(root.path_join("palettes"), palette_files, 50, ["json"], false)
 	_collect_resource_file_infos(root.path_join("themes"), theme_files, 50, ["tres", "res"], false)
 	_collect_resource_file_infos(root.path_join("materials"), material_files, 80, ["tres", "res", "material", "gdshader"], false)
+	_collect_resource_file_infos(root.path_join("reports"), report_files, 50, ["json"], false)
+	_collect_resource_file_infos(root.path_join("sprites"), sprite_files, 120, DESIGN_IMAGE_EXTENSIONS + ["tres", "res"], false)
+	_collect_resource_file_infos(root.path_join("icons"), icon_files, 120, DESIGN_IMAGE_EXTENSIONS, false)
 	_collect_resource_file_infos(root, image_files, 120, DESIGN_IMAGE_EXTENSIONS, false)
 	_collect_resource_file_infos(root, audio_files, 80, DESIGN_AUDIO_EXTENSIONS, false)
 	_collect_resource_file_infos(root, font_files, 40, DESIGN_FONT_EXTENSIONS, false)
-	var design_system_path := root.path_join("design_system.json")
+	_collect_resource_file_infos(root, manifest_candidates, 100, ["json"], false)
+	for item in manifest_candidates:
+		if typeof(item) == TYPE_DICTIONARY and str((item as Dictionary).get("name", "")) == "asset_manifest.json":
+			asset_manifests.append(item)
+	var design_system_path := _design_system_path(root)
 	return {
 		"root": root,
 		"available": DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(root)),
@@ -2016,12 +2722,221 @@ func _design_status(request: Dictionary) -> Dictionary:
 		"theme_count": theme_files.size(),
 		"material_count": material_files.size(),
 		"image_count": image_files.size(),
+		"sprite_count": sprite_files.size(),
+		"icon_count": icon_files.size(),
 		"audio_count": audio_files.size(),
 		"font_count": font_files.size(),
+		"report_count": report_files.size(),
+		"asset_manifest_count": asset_manifests.size(),
 		"palettes": palette_files,
 		"themes": theme_files,
-		"materials": material_files
+		"materials": material_files,
+		"sprites": sprite_files,
+		"icons": icon_files,
+		"asset_manifests": asset_manifests,
+		"reports": report_files
 	}
+
+
+func _design_system_path(root: String) -> String:
+	return root.path_join("design_system.json")
+
+
+func _default_design_system_payload(root: String, request: Dictionary) -> Dictionary:
+	var palette_entries := _design_palette_entries(request.get("palette", request.get("colors", {})))
+	return {
+		"schema_version": 2,
+		"name": str(request.get("name", ProjectSettings.get_setting("application/config/name", "Game Art"))),
+		"style": str(request.get("style", "playful game UI")),
+		"root": root,
+		"created_at": Time.get_datetime_string_from_system(),
+		"updated_at": Time.get_datetime_string_from_system(),
+		"palette": _design_palette_payload(palette_entries),
+		"tokens": _default_design_tokens(palette_entries, request),
+		"asset_roles": request.get("asset_roles", _default_design_asset_roles()),
+		"ui_templates": ["main_menu", "hud", "pause_menu"],
+		"directories": [
+			root,
+			root.path_join("palettes"),
+			root.path_join("themes"),
+			root.path_join("materials"),
+			root.path_join("sprites"),
+			root.path_join("ui"),
+			root.path_join("references"),
+			root.path_join("reports")
+		]
+	}
+
+
+func _default_design_tokens(palette_entries: Array, request: Dictionary) -> Dictionary:
+	return {
+		"colors": _design_palette_payload(palette_entries),
+		"typography": {
+			"base_font_size": int(request.get("font_size", 18)),
+			"small_font_size": int(request.get("small_font_size", 14)),
+			"title_font_size": int(request.get("title_font_size", 32))
+		},
+		"spacing": {
+			"xs": 4,
+			"sm": 8,
+			"md": 12,
+			"lg": 20,
+			"xl": 32
+		},
+		"radius": {
+			"sm": 4,
+			"md": int(request.get("corner_radius", 6)),
+			"lg": 10
+		}
+	}
+
+
+func _default_design_asset_roles() -> Dictionary:
+	return {
+		"player": {
+			"type": "sprite",
+			"status": "placeholder_allowed",
+			"recommended_path": "res://art/sprites/player.png"
+		},
+		"enemy": {
+			"type": "sprite",
+			"status": "placeholder_allowed",
+			"recommended_path": "res://art/sprites/enemy.png"
+		},
+		"projectile": {
+			"type": "sprite",
+			"status": "placeholder_allowed",
+			"recommended_path": "res://art/sprites/projectile.png"
+		},
+		"pickup": {
+			"type": "sprite",
+			"status": "placeholder_allowed",
+			"recommended_path": "res://art/sprites/pickup.png"
+		},
+		"panel": {
+			"type": "ui",
+			"status": "theme_generated",
+			"recommended_path": "res://art/themes/game_theme.tres"
+		}
+	}
+
+
+func _design_system_validation(root: String, _request: Dictionary) -> Dictionary:
+	var path := _design_system_path(root)
+	var issues: Array = []
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(root)):
+		issues.append(_design_issue("error", "missing_design_root", root, "Design root directory does not exist."))
+	if not FileAccess.file_exists(path):
+		issues.append(_design_issue("error", "missing_design_system", path, "design_system.json does not exist."))
+		return {
+			"root": root,
+			"path": path,
+			"valid": false,
+			"issues": issues,
+			"issue_count": issues.size(),
+			"summary": _design_issue_summary(issues)
+		}
+
+	var payload := _read_json_file(path)
+	if payload.is_empty():
+		issues.append(_design_issue("error", "invalid_design_system_json", path, "design_system.json is not valid JSON."))
+	else:
+		if int(payload.get("schema_version", 0)) < 2:
+			issues.append(_design_issue("warning", "old_design_system_schema", path, "Design system schema is older than v2."))
+		var palette_entries := _design_palette_entries(payload)
+		var color_names: Array = []
+		for entry in palette_entries:
+			if typeof(entry) == TYPE_DICTIONARY:
+				color_names.append(str((entry as Dictionary).get("name", "")))
+		for required_color in ["background", "surface", "primary", "accent", "danger", "text"]:
+			if not color_names.has(required_color):
+				issues.append(_design_issue("warning", "missing_design_color", path, "Missing required color token: " + required_color))
+		var tokens = payload.get("tokens", {})
+		if typeof(tokens) != TYPE_DICTIONARY or (tokens as Dictionary).is_empty():
+			issues.append(_design_issue("warning", "missing_design_tokens", path, "Design system has no tokens block."))
+		var directories := payload.get("directories", []) as Array
+		for item in directories:
+			var directory := _normalize_design_root(str(item))
+			if not directory.is_empty() and not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(directory)):
+				issues.append(_design_issue("info", "missing_design_directory", directory, "Design directory is listed but does not exist."))
+		var asset_roles = payload.get("asset_roles", {})
+		if typeof(asset_roles) != TYPE_DICTIONARY or (asset_roles as Dictionary).is_empty():
+			issues.append(_design_issue("info", "missing_asset_roles", path, "No asset roles are defined."))
+		else:
+			for role in (asset_roles as Dictionary).keys():
+				var role_data = (asset_roles as Dictionary)[role]
+				if typeof(role_data) == TYPE_DICTIONARY:
+					var recommended_path := _normalize_resource_path(str((role_data as Dictionary).get("recommended_path", "")))
+					if not recommended_path.is_empty() and not FileAccess.file_exists(recommended_path):
+						issues.append(_design_issue("info", "asset_role_missing_file", recommended_path, "Asset role has no file yet: " + str(role)))
+	var summary := _design_issue_summary(issues)
+	return {
+		"root": root,
+		"path": path,
+		"valid": int(summary.get("error", 0)) == 0,
+		"issues": issues,
+		"issue_count": issues.size(),
+		"summary": summary
+	}
+
+
+func _design_asset_report_data(root: String, request: Dictionary) -> Dictionary:
+	var max_count := int(request.get("max_count", RESOURCE_FILE_LIMIT_DEFAULT))
+	max_count = mini(maxi(max_count, 1), 1000)
+	var extensions := _resource_extension_filter(request.get("extensions", []))
+	if extensions.is_empty():
+		extensions = _design_all_asset_extensions()
+	var files: Array = []
+	_collect_resource_file_infos(root, files, max_count, extensions, false)
+	var counts := {}
+	var issues: Array = []
+	var max_texture_size := int(request.get("max_texture_size", 4096))
+	for item in files:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var info := item as Dictionary
+		var extension := str(info.get("extension", "")).to_lower()
+		counts[extension] = int(counts.get(extension, 0)) + 1
+		issues.append_array(_design_asset_issues(info, max_texture_size))
+	return {
+		"root": root,
+		"files": files,
+		"counts": counts,
+		"issues": issues,
+		"issue_count": issues.size()
+	}
+
+
+func _design_issue(severity: String, issue_type: String, path: String, message: String) -> Dictionary:
+	return {
+		"severity": severity,
+		"type": issue_type,
+		"path": path,
+		"message": message
+	}
+
+
+func _design_issue_summary(issues: Array) -> Dictionary:
+	var summary := {
+		"error": 0,
+		"warning": 0,
+		"info": 0
+	}
+	for item in issues:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var severity := str((item as Dictionary).get("severity", "info"))
+		summary[severity] = int(summary.get(severity, 0)) + 1
+	return summary
+
+
+func _deep_merge_dictionary(target: Dictionary, source: Dictionary) -> void:
+	for key in source.keys():
+		var source_value = source[key]
+		if target.has(key) and typeof(target[key]) == TYPE_DICTIONARY and typeof(source_value) == TYPE_DICTIONARY:
+			_deep_merge_dictionary(target[key] as Dictionary, source_value as Dictionary)
+		else:
+			target[key] = source_value
 
 
 func _normalize_design_root(raw_root: String) -> String:
@@ -2065,8 +2980,14 @@ func _safe_design_slug(raw_value: String, fallback: String) -> String:
 func _design_palette_entries(raw_palette) -> Array:
 	if typeof(raw_palette) == TYPE_DICTIONARY:
 		var palette_dict := raw_palette as Dictionary
+		if palette_dict.has("tokens") and typeof(palette_dict.get("tokens")) == TYPE_DICTIONARY:
+			var tokens := palette_dict.get("tokens") as Dictionary
+			if tokens.has("colors"):
+				return _design_palette_entries(tokens.get("colors", {}))
 		if palette_dict.has("colors"):
 			return _design_palette_entries(palette_dict.get("colors", {}))
+		if palette_dict.has("palette"):
+			return _design_palette_entries(palette_dict.get("palette", {}))
 		var entries: Array = []
 		for raw_name in palette_dict.keys():
 			var name := str(raw_name).strip_edges()
@@ -2288,6 +3209,296 @@ func _collect_control_nodes(node: Node, recursive: bool, controls: Array) -> voi
 			_collect_control_nodes(child as Node, recursive, controls)
 
 
+func _build_ui_template_scene(template: String, request: Dictionary, theme: Theme) -> Control:
+	var scene_root := Control.new()
+	scene_root.name = _template_root_name(template)
+	_set_control_full_rect(scene_root)
+	if theme != null:
+		scene_root.theme = theme
+	match template:
+		"main_menu":
+			_build_main_menu_template(scene_root, request)
+		"hud":
+			_build_hud_template(scene_root, request)
+		"pause_menu":
+			_build_pause_menu_template(scene_root, request)
+	_set_owner_recursive(scene_root, scene_root)
+	return scene_root
+
+
+func _build_main_menu_template(root: Control, request: Dictionary) -> void:
+	var background := ColorRect.new()
+	background.name = "Background"
+	background.color = _decode_design_color(request.get("background_color", "#101826"), Color(0.06, 0.09, 0.15, 1.0))
+	_set_control_full_rect(background)
+	root.add_child(background)
+
+	var panel := PanelContainer.new()
+	panel.name = "MenuPanel"
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -180
+	panel.offset_top = -150
+	panel.offset_right = 180
+	panel.offset_bottom = 150
+	root.add_child(panel)
+
+	var margin := MarginContainer.new()
+	margin.name = "ContentMargin"
+	margin.add_theme_constant_override("margin_left", 24)
+	margin.add_theme_constant_override("margin_right", 24)
+	margin.add_theme_constant_override("margin_top", 22)
+	margin.add_theme_constant_override("margin_bottom", 22)
+	panel.add_child(margin)
+
+	var column := VBoxContainer.new()
+	column.name = "MenuColumn"
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 14)
+	margin.add_child(column)
+
+	var title := Label.new()
+	title.name = "TitleLabel"
+	title.text = str(request.get("title", ProjectSettings.get_setting("application/config/name", "Game")))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	title.add_theme_font_size_override("font_size", 32)
+	column.add_child(title)
+
+	for button_name in ["Start", "Settings", "Quit"]:
+		var button := Button.new()
+		button.name = button_name + "Button"
+		button.text = button_name
+		button.custom_minimum_size = Vector2(220, 46)
+		column.add_child(button)
+
+
+func _build_hud_template(root: Control, _request: Dictionary) -> void:
+	var margin := MarginContainer.new()
+	margin.name = "HudMargin"
+	_set_control_full_rect(margin)
+	margin.add_theme_constant_override("margin_left", 16)
+	margin.add_theme_constant_override("margin_right", 16)
+	margin.add_theme_constant_override("margin_top", 12)
+	margin.add_theme_constant_override("margin_bottom", 12)
+	root.add_child(margin)
+
+	var row := HBoxContainer.new()
+	row.name = "TopBar"
+	row.add_theme_constant_override("separation", 12)
+	margin.add_child(row)
+
+	var health := Label.new()
+	health.name = "HealthLabel"
+	health.text = "HP 3"
+	health.custom_minimum_size = Vector2(90, 32)
+	row.add_child(health)
+
+	var score := Label.new()
+	score.name = "ScoreLabel"
+	score.text = "Score 0"
+	score.custom_minimum_size = Vector2(120, 32)
+	row.add_child(score)
+
+	var spacer := Control.new()
+	spacer.name = "Spacer"
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(spacer)
+
+	var pause := Button.new()
+	pause.name = "PauseButton"
+	pause.text = "Pause"
+	pause.custom_minimum_size = Vector2(92, 44)
+	row.add_child(pause)
+
+
+func _build_pause_menu_template(root: Control, request: Dictionary) -> void:
+	root.visible = bool(request.get("visible", true))
+	var overlay := ColorRect.new()
+	overlay.name = "Overlay"
+	overlay.color = Color(0.0, 0.0, 0.0, 0.55)
+	_set_control_full_rect(overlay)
+	root.add_child(overlay)
+
+	var panel := PanelContainer.new()
+	panel.name = "PausePanel"
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -150
+	panel.offset_top = -120
+	panel.offset_right = 150
+	panel.offset_bottom = 120
+	root.add_child(panel)
+
+	var column := VBoxContainer.new()
+	column.name = "PauseColumn"
+	column.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_theme_constant_override("separation", 14)
+	panel.add_child(column)
+
+	var title := Label.new()
+	title.name = "PauseTitle"
+	title.text = str(request.get("title", "Paused"))
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 28)
+	column.add_child(title)
+
+	for button_name in ["Resume", "Restart", "MainMenu"]:
+		var button := Button.new()
+		button.name = button_name + "Button"
+		button.text = "Main Menu" if button_name == "MainMenu" else button_name
+		button.custom_minimum_size = Vector2(200, 44)
+		column.add_child(button)
+
+
+func _template_root_name(template: String) -> String:
+	match template:
+		"main_menu":
+			return "MainMenu"
+		"hud":
+			return "HUD"
+		"pause_menu":
+			return "PauseMenu"
+		_:
+			return "UIRoot"
+
+
+func _set_control_full_rect(control: Control) -> void:
+	control.anchor_left = 0.0
+	control.anchor_top = 0.0
+	control.anchor_right = 1.0
+	control.anchor_bottom = 1.0
+	control.offset_left = 0.0
+	control.offset_top = 0.0
+	control.offset_right = 0.0
+	control.offset_bottom = 0.0
+
+
+func _set_owner_recursive(node: Node, owner: Node) -> void:
+	for child in node.get_children():
+		if child is Node:
+			(child as Node).owner = owner
+			_set_owner_recursive(child as Node, owner)
+
+
+func _count_nodes(node: Node) -> int:
+	var count := 1
+	for child in node.get_children():
+		if child is Node:
+			count += _count_nodes(child as Node)
+	return count
+
+
+func _inspect_ui_scene_data(request: Dictionary) -> Dictionary:
+	var min_touch_size := float(request.get("min_touch_size", 44.0))
+	var temporary_root: Node = null
+	var root_node: Node = null
+	var scene_path := _normalize_resource_path(str(request.get("scene_path", "")))
+	if not scene_path.is_empty():
+		var packed = load(scene_path)
+		if not packed is PackedScene:
+			return {
+				"ok": false,
+				"message": "Cannot load UI scene: " + scene_path
+			}
+		temporary_root = (packed as PackedScene).instantiate()
+		root_node = temporary_root
+	else:
+		root_node = _edited_scene_root()
+	if root_node == null:
+		return {
+			"ok": false,
+			"message": "No editable scene is currently open."
+		}
+
+	var target := root_node
+	var node_path := str(request.get("node_path", "")).strip_edges()
+	if not node_path.is_empty():
+		if temporary_root != null:
+			target = temporary_root.get_node_or_null(NodePath(node_path))
+		else:
+			target = _find_scene_node(node_path)
+		if target == null:
+			if temporary_root != null:
+				temporary_root.free()
+			return {
+				"ok": false,
+				"message": "UI target node was not found: " + node_path
+			}
+
+	var controls: Array = []
+	_collect_control_nodes(target, true, controls)
+	var issues: Array = []
+	var summaries: Array = []
+	for item in controls:
+		if not item is Control:
+			continue
+		var control := item as Control
+		summaries.append(_ui_control_summary(control, root_node))
+		issues.append_array(_ui_control_issues(control, root_node, min_touch_size))
+	if temporary_root != null:
+		temporary_root.free()
+	var summary := _design_issue_summary(issues)
+	return {
+		"ok": true,
+		"root": scene_path if not scene_path.is_empty() else str(root_node.name),
+		"target": node_path,
+		"controls": summaries,
+		"control_count": summaries.size(),
+		"issues": issues,
+		"issue_count": issues.size(),
+		"summary": summary
+	}
+
+
+func _ui_control_summary(control: Control, scene_root: Node) -> Dictionary:
+	var item := {
+		"name": str(control.name),
+		"class": control.get_class(),
+		"path": _node_path_from_root(control, scene_root),
+		"anchors": [control.anchor_left, control.anchor_top, control.anchor_right, control.anchor_bottom],
+		"custom_minimum_size": _encode_value(control.custom_minimum_size),
+		"size": _encode_value(control.size),
+		"has_theme": control.theme != null
+	}
+	if _has_property(control, "text"):
+		item["text"] = str(control.get("text"))
+	if control is Label:
+		item["autowrap_mode"] = int((control as Label).autowrap_mode)
+	return item
+
+
+func _ui_control_issues(control: Control, scene_root: Node, min_touch_size: float) -> Array:
+	var issues: Array = []
+	var path := _node_path_from_root(control, scene_root)
+	if control is Label:
+		var label := control as Label
+		if not label.text.is_empty() and label.autowrap_mode == TextServer.AUTOWRAP_OFF:
+			issues.append(_design_issue("warning", "label_autowrap_disabled", path, "Label has text but autowrap is disabled."))
+	if control is Button:
+		var button := control as Button
+		if button.text.strip_edges().is_empty():
+			issues.append(_design_issue("info", "button_missing_text", path, "Button has no visible text."))
+		var min_size := button.custom_minimum_size
+		if min_size.x > 0 and min_size.x < min_touch_size or min_size.y > 0 and min_size.y < min_touch_size:
+			issues.append(_design_issue("warning", "touch_target_too_small", path, "Button custom_minimum_size is below " + str(min_touch_size) + " px."))
+	if control != scene_root and control.anchor_left == 0.0 and control.anchor_top == 0.0 and control.anchor_right == 0.0 and control.anchor_bottom == 0.0 and control.custom_minimum_size == Vector2.ZERO:
+		issues.append(_design_issue("info", "fixed_control_without_min_size", path, "Control uses fixed top-left anchors without a minimum size."))
+	return issues
+
+
+func _node_path_from_root(node: Node, scene_root: Node) -> String:
+	if node == scene_root:
+		return "."
+	if scene_root != null and scene_root.is_ancestor_of(node):
+		return str(scene_root.get_path_to(node))
+	return str(node.get_path())
+
+
 func _visual_feedback_for_node(node: Node) -> Dictionary:
 	return {
 		"focused": node != null,
@@ -2356,7 +3567,7 @@ func _design_asset_issues(info: Dictionary, max_texture_size: int) -> Array:
 		})
 	if extension in ["png", "jpg", "jpeg", "webp", "tga", "bmp", "exr", "hdr"]:
 		var image := Image.new()
-		var load_error := image.load(path)
+		var load_error := image.load(ProjectSettings.globalize_path(path))
 		if load_error == OK and (image.get_width() > max_texture_size or image.get_height() > max_texture_size):
 			issues.append({
 				"severity": "warning",
@@ -2367,6 +3578,308 @@ func _design_asset_issues(info: Dictionary, max_texture_size: int) -> Array:
 				"height": image.get_height()
 			})
 	return issues
+
+
+func _placeholder_color_for_role(role: String) -> Color:
+	match _safe_design_slug(role, "sprite"):
+		"player", "hero":
+			return Color(0.25, 0.64, 1.0, 1.0)
+		"enemy", "danger":
+			return Color(1.0, 0.36, 0.36, 1.0)
+		"projectile", "bullet":
+			return Color(0.5, 0.94, 1.0, 1.0)
+		"pickup", "coin", "key":
+			return Color(1.0, 0.78, 0.24, 1.0)
+		"ui", "button", "panel":
+			return Color(0.25, 0.62, 1.0, 1.0)
+		"health", "heart":
+			return Color(1.0, 0.3, 0.42, 1.0)
+		_:
+			return Color(0.39, 0.86, 0.58, 1.0)
+
+
+func _build_placeholder_image(width: int, height: int, raw_shape: String, fill_color: Color, outline_color: Color) -> Image:
+	var image := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0, 0, 0, 0))
+	var shape := _safe_design_slug(raw_shape, "diamond")
+	var center := Vector2i(width / 2, height / 2)
+	var min_side := mini(width, height)
+	var outline_radius := maxi(int(min_side * 0.42), 2)
+	var fill_radius := maxi(outline_radius - maxi(int(min_side * 0.08), 2), 1)
+	match shape:
+		"player", "hero":
+			_draw_placeholder_circle(image, center, outline_radius, outline_color)
+			_draw_placeholder_circle(image, center, fill_radius, fill_color)
+			_draw_placeholder_rect(image, Rect2i(center.x - maxi(width / 18, 2), center.y - outline_radius, maxi(width / 9, 4), outline_radius + fill_radius / 2), outline_color)
+			_draw_placeholder_circle(image, Vector2i(center.x - fill_radius / 3, center.y - fill_radius / 5), maxi(fill_radius / 7, 2), Color(0.02, 0.04, 0.08, 1.0))
+			_draw_placeholder_circle(image, Vector2i(center.x + fill_radius / 3, center.y - fill_radius / 5), maxi(fill_radius / 7, 2), Color(0.02, 0.04, 0.08, 1.0))
+		"enemy":
+			_draw_placeholder_triangle(image, Vector2i(center.x - fill_radius, center.y - fill_radius / 2), Vector2i(center.x - fill_radius / 3, center.y - outline_radius), Vector2i(center.x, center.y - fill_radius / 4), outline_color)
+			_draw_placeholder_triangle(image, Vector2i(center.x + fill_radius, center.y - fill_radius / 2), Vector2i(center.x + fill_radius / 3, center.y - outline_radius), Vector2i(center.x, center.y - fill_radius / 4), outline_color)
+			_draw_placeholder_circle(image, center, outline_radius, outline_color)
+			_draw_placeholder_circle(image, center, fill_radius, fill_color)
+			_draw_placeholder_circle(image, Vector2i(center.x - fill_radius / 3, center.y - fill_radius / 8), maxi(fill_radius / 7, 2), Color(1.0, 0.92, 0.25, 1.0))
+			_draw_placeholder_circle(image, Vector2i(center.x + fill_radius / 3, center.y - fill_radius / 8), maxi(fill_radius / 7, 2), Color(1.0, 0.92, 0.25, 1.0))
+		"projectile", "bullet", "circle":
+			_draw_placeholder_circle(image, center, outline_radius, outline_color)
+			_draw_placeholder_circle(image, center, fill_radius, fill_color)
+			_draw_placeholder_circle(image, center, maxi(fill_radius / 3, 1), Color(1, 1, 1, 0.85))
+		"key":
+			_draw_placeholder_circle(image, Vector2i(width / 3, center.y), maxi(min_side / 5, 3), outline_color)
+			_draw_placeholder_circle(image, Vector2i(width / 3, center.y), maxi(min_side / 8, 2), Color(0, 0, 0, 0))
+			_draw_placeholder_rect(image, Rect2i(width / 2 - min_side / 10, center.y - min_side / 16, width / 3, maxi(min_side / 8, 3)), fill_color)
+			_draw_placeholder_rect(image, Rect2i(width * 3 / 4, center.y, maxi(min_side / 12, 2), height / 5), fill_color)
+		"heart", "health":
+			_draw_placeholder_circle(image, Vector2i(center.x - fill_radius / 3, center.y - fill_radius / 5), fill_radius / 2, outline_color)
+			_draw_placeholder_circle(image, Vector2i(center.x + fill_radius / 3, center.y - fill_radius / 5), fill_radius / 2, outline_color)
+			_draw_placeholder_triangle(image, Vector2i(center.x - outline_radius, center.y), Vector2i(center.x + outline_radius, center.y), Vector2i(center.x, center.y + outline_radius), outline_color)
+			_draw_placeholder_circle(image, Vector2i(center.x - fill_radius / 3, center.y - fill_radius / 5), maxi(fill_radius / 2 - 2, 1), fill_color)
+			_draw_placeholder_circle(image, Vector2i(center.x + fill_radius / 3, center.y - fill_radius / 5), maxi(fill_radius / 2 - 2, 1), fill_color)
+			_draw_placeholder_triangle(image, Vector2i(center.x - fill_radius, center.y), Vector2i(center.x + fill_radius, center.y), Vector2i(center.x, center.y + fill_radius), fill_color)
+		"triangle":
+			_draw_placeholder_triangle(image, Vector2i(center.x, center.y - outline_radius), Vector2i(center.x - outline_radius, center.y + outline_radius), Vector2i(center.x + outline_radius, center.y + outline_radius), outline_color)
+			_draw_placeholder_triangle(image, Vector2i(center.x, center.y - fill_radius), Vector2i(center.x - fill_radius, center.y + fill_radius), Vector2i(center.x + fill_radius, center.y + fill_radius), fill_color)
+		"square", "rect", "panel", "button":
+			var outline_rect := Rect2i(center.x - outline_radius, center.y - outline_radius, outline_radius * 2, outline_radius * 2)
+			var fill_rect := Rect2i(center.x - fill_radius, center.y - fill_radius, fill_radius * 2, fill_radius * 2)
+			_draw_placeholder_rect(image, outline_rect, outline_color)
+			_draw_placeholder_rect(image, fill_rect, fill_color)
+		_:
+			_draw_placeholder_diamond(image, center, outline_radius, outline_radius, outline_color)
+			_draw_placeholder_diamond(image, center, fill_radius, fill_radius, fill_color)
+			_draw_placeholder_circle(image, center, maxi(fill_radius / 4, 1), Color(1, 1, 1, 0.8))
+	return image
+
+
+func _placeholder_icon_specs(raw_icons, palette_map: Dictionary) -> Array:
+	var raw_list: Array = []
+	if typeof(raw_icons) == TYPE_ARRAY:
+		raw_list = raw_icons as Array
+	if raw_list.is_empty():
+		raw_list = [
+			{"name": "health", "shape": "heart", "color": palette_map.get("danger", _placeholder_color_for_role("health"))},
+			{"name": "coin", "shape": "circle", "color": _placeholder_color_for_role("coin")},
+			{"name": "key", "shape": "key", "color": _placeholder_color_for_role("key")},
+			{"name": "ability", "shape": "diamond", "color": palette_map.get("primary", _placeholder_color_for_role("ui"))}
+		]
+
+	var specs: Array = []
+	for item in raw_list:
+		if typeof(item) == TYPE_STRING:
+			var icon_name := _safe_design_slug(str(item), "icon")
+			specs.append({
+				"name": icon_name,
+				"shape": icon_name,
+				"color": _placeholder_color_for_role(icon_name)
+			})
+		elif typeof(item) == TYPE_DICTIONARY:
+			var icon := item as Dictionary
+			var name := _safe_design_slug(str(icon.get("name", icon.get("role", "icon"))), "icon")
+			var role := _safe_design_slug(str(icon.get("role", name)), name)
+			var shape := _safe_design_slug(str(icon.get("shape", role)), "diamond")
+			var fallback_color: Color = palette_map.get(role, _placeholder_color_for_role(role))
+			specs.append({
+				"name": name,
+				"role": role,
+				"shape": shape,
+				"color": _decode_design_color(icon.get("color", fallback_color), fallback_color)
+			})
+	return specs
+
+
+func _texture_from_image_path(path: String) -> Texture2D:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return null
+	if ResourceLoader.exists(path):
+		var resource := load(path)
+		if resource is Texture2D:
+			return resource as Texture2D
+	var image := Image.new()
+	var load_error := image.load(ProjectSettings.globalize_path(path))
+	if load_error != OK:
+		return null
+	return ImageTexture.create_from_image(image)
+
+
+func _texture_import_preset_settings(preset: String) -> Dictionary:
+	var params := {
+		"compress/mode": 0,
+		"compress/high_quality": false,
+		"compress/lossy_quality": 0.7,
+		"compress/uastc_level": 0,
+		"compress/rdo_quality_loss": 0.0,
+		"compress/hdr_compression": 1,
+		"compress/normal_map": 0,
+		"compress/channel_pack": 0,
+		"mipmaps/generate": false,
+		"mipmaps/limit": -1,
+		"roughness/mode": 0,
+		"roughness/src_normal": "",
+		"process/channel_remap/red": 0,
+		"process/channel_remap/green": 1,
+		"process/channel_remap/blue": 2,
+		"process/channel_remap/alpha": 3,
+		"process/fix_alpha_border": true,
+		"process/premult_alpha": false,
+		"process/normal_map_invert_y": false,
+		"process/hdr_as_srgb": false,
+		"process/hdr_clamp_exposure": false,
+		"process/size_limit": 0,
+		"detect_3d/compress_to": 1
+	}
+	match _safe_design_slug(preset, "pixel_2d"):
+		"pixel", "pixel_art", "pixel_2d":
+			params["mipmaps/generate"] = false
+			params["process/fix_alpha_border"] = false
+		"ui", "ui_2d":
+			params["mipmaps/generate"] = false
+			params["process/fix_alpha_border"] = true
+		"smooth", "filtered":
+			params["mipmaps/generate"] = true
+			params["process/fix_alpha_border"] = true
+		"vram", "3d":
+			params["compress/mode"] = 2
+			params["mipmaps/generate"] = true
+	return {
+		"remap": {
+			"importer": "texture",
+			"type": "CompressedTexture2D",
+			"metadata": {
+				"vram_texture": false
+			}
+		},
+		"deps": {},
+		"params": params
+	}
+
+
+func _write_texture_import_sidecar(source_path: String, sidecar_path: String, settings: Dictionary) -> Dictionary:
+	var config := ConfigFile.new()
+	if FileAccess.file_exists(sidecar_path):
+		var load_error := config.load(sidecar_path)
+		if load_error != OK:
+			return {
+				"error": load_error
+			}
+
+	var remap := settings.get("remap", {}) as Dictionary
+	if remap.is_empty():
+		remap = {
+			"importer": "texture",
+			"type": "CompressedTexture2D"
+		}
+	for key in remap.keys():
+		config.set_value("remap", str(key), remap[key])
+	config.set_value("deps", "source_file", source_path)
+	if settings.has("deps") and typeof(settings.get("deps")) == TYPE_DICTIONARY:
+		for key in (settings.get("deps") as Dictionary).keys():
+			config.set_value("deps", str(key), (settings.get("deps") as Dictionary)[key])
+
+	var params := {}
+	if settings.has("params") and typeof(settings.get("params")) == TYPE_DICTIONARY:
+		params = settings.get("params") as Dictionary
+	else:
+		params = settings
+	for key in params.keys():
+		config.set_value("params", str(key), params[key])
+
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(sidecar_path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return {
+			"error": dir_error
+		}
+	return {
+		"error": config.save(sidecar_path)
+	}
+
+
+func _asset_manifest_entries(files: Array) -> Array:
+	var entries: Array = []
+	for item in files:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		var info := item as Dictionary
+		entries.append({
+			"path": str(info.get("path", "")),
+			"name": str(info.get("name", "")),
+			"extension": str(info.get("extension", "")),
+			"kind": _asset_kind_for_extension(str(info.get("extension", ""))),
+			"resource_type": str(info.get("resource_type", "")),
+			"imported": bool(info.get("imported", false))
+		})
+	return entries
+
+
+func _asset_kind_for_extension(extension: String) -> String:
+	var normalized := extension.strip_edges().trim_prefix(".").to_lower()
+	if normalized in DESIGN_IMAGE_EXTENSIONS:
+		return "image"
+	if normalized in DESIGN_AUDIO_EXTENSIONS:
+		return "audio"
+	if normalized in DESIGN_FONT_EXTENSIONS:
+		return "font"
+	if normalized in DESIGN_RESOURCE_EXTENSIONS:
+		return "resource"
+	if normalized == "json":
+		return "metadata"
+	return "unknown"
+
+
+func _draw_placeholder_rect(image: Image, rect: Rect2i, color: Color) -> void:
+	var min_x := maxi(rect.position.x, 0)
+	var min_y := maxi(rect.position.y, 0)
+	var max_x := mini(rect.position.x + rect.size.x, image.get_width())
+	var max_y := mini(rect.position.y + rect.size.y, image.get_height())
+	for y in range(min_y, max_y):
+		for x in range(min_x, max_x):
+			image.set_pixel(x, y, color)
+
+
+func _draw_placeholder_circle(image: Image, center: Vector2i, radius: int, color: Color) -> void:
+	var radius_squared := radius * radius
+	for y in range(center.y - radius, center.y + radius + 1):
+		for x in range(center.x - radius, center.x + radius + 1):
+			if x < 0 or y < 0 or x >= image.get_width() or y >= image.get_height():
+				continue
+			var dx := x - center.x
+			var dy := y - center.y
+			if dx * dx + dy * dy <= radius_squared:
+				image.set_pixel(x, y, color)
+
+
+func _draw_placeholder_diamond(image: Image, center: Vector2i, radius_x: int, radius_y: int, color: Color) -> void:
+	for y in range(center.y - radius_y, center.y + radius_y + 1):
+		for x in range(center.x - radius_x, center.x + radius_x + 1):
+			if x < 0 or y < 0 or x >= image.get_width() or y >= image.get_height():
+				continue
+			var dx: float = abs(x - center.x) / maxf(float(radius_x), 1.0)
+			var dy: float = abs(y - center.y) / maxf(float(radius_y), 1.0)
+			if dx + dy <= 1.0:
+				image.set_pixel(x, y, color)
+
+
+func _draw_placeholder_triangle(image: Image, a: Vector2i, b: Vector2i, c: Vector2i, color: Color) -> void:
+	var min_x := maxi(mini(a.x, mini(b.x, c.x)), 0)
+	var max_x := mini(maxi(a.x, maxi(b.x, c.x)), image.get_width() - 1)
+	var min_y := maxi(mini(a.y, mini(b.y, c.y)), 0)
+	var max_y := mini(maxi(a.y, maxi(b.y, c.y)), image.get_height() - 1)
+	for y in range(min_y, max_y + 1):
+		for x in range(min_x, max_x + 1):
+			if _placeholder_point_in_triangle(Vector2(x, y), Vector2(a), Vector2(b), Vector2(c)):
+				image.set_pixel(x, y, color)
+
+
+func _placeholder_point_in_triangle(point: Vector2, a: Vector2, b: Vector2, c: Vector2) -> bool:
+	var area := _placeholder_triangle_sign(point, a, b)
+	var area_2 := _placeholder_triangle_sign(point, b, c)
+	var area_3 := _placeholder_triangle_sign(point, c, a)
+	var has_negative := area < 0.0 or area_2 < 0.0 or area_3 < 0.0
+	var has_positive := area > 0.0 or area_2 > 0.0 or area_3 > 0.0
+	return not (has_negative and has_positive)
+
+
+func _placeholder_triangle_sign(p1: Vector2, p2: Vector2, p3: Vector2) -> float:
+	return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y)
 
 
 func _save_new_resource(resource: Resource, path: String, success_message: String, snapshot_reason: String) -> Dictionary:

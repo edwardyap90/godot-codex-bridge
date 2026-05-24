@@ -26,6 +26,8 @@
 - 扩展安全场景动作：重命名、复制、删除、reparent、排序、owner、分组、唯一名和 metadata。
 - 支持创建、保存、修改 `.tres` / `.res` 资源，并提供 material/theme helper。
 - 新增 Art Direction Kit：可创建设计系统、调色板、UI Theme、tint 材质包，并生成美术资源检查报告。
+- 新增 Visual Design Control Plane：Design System v2、UI 模板场景、UI 布局检查和设计 lint 报告。
+- 新增美术资源管线 helper：占位角色/图标 PNG、`SpriteFrames`、纹理导入预设和资产 manifest。
 - 新增受控 Raw API 模式，默认关闭，只允许白名单调用，不执行任意脚本。
 
 ## 安装
@@ -109,7 +111,7 @@ tools/godot_bridge_send.sh --json '{"command":"select_node","node_path":"Player"
 
 `status` 会显示当前项目、队列路径、待处理请求数量和桥接状态响应。`doctor --deep` 会检查插件文件、插件启用状态、Python、Godot 可执行文件、队列目录、bridge ping、v2 能力、命令 schema 和 Raw 模式状态。`doctor --project` 会重点检查当前项目身份、队列和 helper 是否属于当前项目，适合多项目同时打开时使用。
 
-常用 v0.5 命令：
+常用 v0.6 命令：
 
 ```bash
 tools/godot_bridge_send.sh schema
@@ -118,11 +120,21 @@ tools/godot_bridge_send.sh --json '{"command":"get_autoloads"}'
 tools/godot_bridge_send.sh --json '{"command":"get_layer_names","family":"2d_physics"}'
 tools/godot_bridge_send.sh --json '{"command":"get_common_project_settings"}'
 tools/godot_bridge_send.sh --json '{"command":"get_design_status","root":"res://art"}'
+tools/godot_bridge_send.sh --json '{"command":"get_design_system","root":"res://art"}'
+tools/godot_bridge_send.sh --json '{"command":"validate_design_system","root":"res://art"}'
 tools/godot_bridge_send.sh --json '{"command":"create_design_system","root":"res://art","name":"My Game Art","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_palette","path":"res://art/palettes/game_palette.json","colors":{"background":"#101826","surface":"#22314a","primary":"#4aa3ff","accent":"#62d986","danger":"#ff6060","text":"#edf5ff"},"replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_ui_theme","path":"res://art/themes/game_theme.tres","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_ui_template","template":"main_menu","path":"res://ui/main_menu.tscn","theme_path":"res://art/themes/game_theme.tres","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"inspect_ui_scene","scene_path":"res://ui/main_menu.tscn"}'
 tools/godot_bridge_send.sh --json '{"command":"create_material_pack","root":"res://art/materials","palette_path":"res://art/palettes/game_palette.json","replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_placeholder_sprite","path":"res://art/sprites/player.png","role":"player","width":64,"height":64,"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_placeholder_icon_set","root":"res://art/icons","icons":["health","coin","key"],"size":32,"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"inspect_art_assets","root":"res://art","write_report":true}'
+tools/godot_bridge_send.sh --json '{"command":"run_design_lint","root":"res://art","scene_path":"res://ui/main_menu.tscn","write_report":true}'
 ```
 
 Raw API 默认关闭。可信本地流程需要时可以设置 `codex_bridge/raw_api_enabled=true` 或 `CODEX_GODOT_RAW_API_ENABLED=1`。Raw 调用会写入 `.godot/godot_codex_bridge/raw_audit.jsonl`。
