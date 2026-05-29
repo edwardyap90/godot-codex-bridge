@@ -672,6 +672,29 @@ func _init() -> void:
 		"path": asset_manifest_path,
 		"replace": true
 	})
+	var asset_contact_sheet_path := design_root.path_join("reports/asset_contact_sheet.png")
+	var asset_contact_sheet_report_path := design_root.path_join("reports/asset_contact_sheet.json")
+	var asset_contact_sheet_result: Dictionary = bridge.handle_request({
+		"command": "create_asset_contact_sheet",
+		"root": design_root,
+		"path": asset_contact_sheet_path,
+		"report_path": asset_contact_sheet_report_path,
+		"thumb_size": 32,
+		"columns": 2,
+		"replace": true
+	})
+	var scene_preview_path := design_root.path_join("reports/scene_preview.png")
+	var scene_preview_report_path := design_root.path_join("reports/scene_preview.json")
+	var scene_preview_result: Dictionary = bridge.handle_request({
+		"command": "create_scene_preview",
+		"root": design_root,
+		"path": scene_preview_path,
+		"report_path": scene_preview_report_path,
+		"scene_path": ui_template_path,
+		"width": 360,
+		"height": 220,
+		"replace": true
+	})
 	var inspect_art_result: Dictionary = bridge.handle_request({
 		"command": "inspect_art_assets",
 		"root": design_root,
@@ -795,6 +818,8 @@ func _init() -> void:
 	var texture_import_data := texture_import_result.get("data", {}) as Dictionary
 	var texture_import_updated := texture_import_data.get("updated", []) as Array
 	var asset_manifest_data := asset_manifest_result.get("data", {}) as Dictionary
+	var asset_contact_sheet_data := asset_contact_sheet_result.get("data", {}) as Dictionary
+	var scene_preview_data := scene_preview_result.get("data", {}) as Dictionary
 	var inspect_art_data := inspect_art_result.get("data", {}) as Dictionary
 	var design_status_data := design_status_result.get("data", {}) as Dictionary
 	var design_status := design_status_data.get("design", {}) as Dictionary
@@ -837,17 +862,21 @@ func _init() -> void:
 	passed = passed and (capabilities.get("design", []) as Array).has("create_ui_template")
 	passed = passed and (capabilities.get("design", []) as Array).has("create_placeholder_sprite")
 	passed = passed and (capabilities.get("design", []) as Array).has("create_asset_manifest")
+	passed = passed and (capabilities.get("design", []) as Array).has("create_asset_contact_sheet")
+	passed = passed and (capabilities.get("design", []) as Array).has("create_scene_preview")
 	passed = passed and bool(capabilities_v2_result.get("ok", false))
 	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
 	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
 	passed = passed and bool(command_schema_result.get("ok", false))
-	passed = passed and str(command_schema.get("bridge_version", "")) == "0.6.0"
+	passed = passed and str(command_schema.get("bridge_version", "")) == "0.6.1"
 	passed = passed and command_schema_entries.size() > 20
 	passed = passed and _schema_has_command(command_schema_entries, "create_design_system")
 	passed = passed and _schema_has_command(command_schema_entries, "apply_ui_theme")
 	passed = passed and _schema_has_command(command_schema_entries, "run_design_lint")
 	passed = passed and _schema_has_command(command_schema_entries, "create_placeholder_sprite")
 	passed = passed and _schema_has_command(command_schema_entries, "set_texture_import_preset")
+	passed = passed and _schema_has_command(command_schema_entries, "create_asset_contact_sheet")
+	passed = passed and _schema_has_command(command_schema_entries, "create_scene_preview")
 	passed = passed and bool(raw_status_result.get("ok", false))
 	passed = passed and not bool(raw_status.get("enabled", true))
 	passed = passed and not bool(raw_disabled_result.get("ok", true))
@@ -983,6 +1012,15 @@ func _init() -> void:
 	passed = passed and bool(asset_manifest_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(asset_manifest_path))
 	passed = passed and int(asset_manifest_data.get("asset_count", 0)) >= 1
+	passed = passed and bool(asset_contact_sheet_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(asset_contact_sheet_path))
+	passed = passed and bool(FileAccess.file_exists(asset_contact_sheet_report_path))
+	passed = passed and int(asset_contact_sheet_data.get("image_count", 0)) >= 1
+	passed = passed and bool(scene_preview_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(scene_preview_path))
+	passed = passed and bool(FileAccess.file_exists(scene_preview_report_path))
+	passed = passed and str(scene_preview_data.get("scene_path", "")) == ui_template_path
+	passed = passed and int(scene_preview_data.get("node_count", 0)) >= 1
 	passed = passed and bool(inspect_art_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(str(inspect_art_data.get("report_path", ""))))
 	passed = passed and bool(design_status_result.get("ok", false))
@@ -993,6 +1031,7 @@ func _init() -> void:
 	passed = passed and int(design_status.get("sprite_count", 0)) >= 1
 	passed = passed and int(design_status.get("icon_count", 0)) >= 1
 	passed = passed and int(design_status.get("asset_manifest_count", 0)) >= 1
+	passed = passed and int(design_status.get("preview_count", 0)) >= 2
 	passed = passed and int(design_status.get("report_count", 0)) >= 1
 	passed = passed and bool(design_lint_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(str(design_lint_data.get("report_path", ""))))

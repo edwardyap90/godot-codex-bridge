@@ -14,7 +14,7 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 const CONTROL_PLANE_SCHEMA_VERSION := 2
 const RAW_AUDIT_LIMIT := 100
-const BRIDGE_VERSION := "0.6.0"
+const BRIDGE_VERSION := "0.6.1"
 const DESIGN_IMAGE_EXTENSIONS := ["png", "jpg", "jpeg", "webp", "svg", "tga", "bmp", "exr", "hdr"]
 const DESIGN_AUDIO_EXTENSIONS := ["wav", "ogg", "mp3"]
 const DESIGN_FONT_EXTENSIONS := ["ttf", "otf", "woff", "woff2"]
@@ -288,6 +288,10 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _set_texture_import_preset(request)
 		"create_asset_manifest":
 			return _create_asset_manifest(request)
+		"create_asset_contact_sheet":
+			return _create_asset_contact_sheet(request)
+		"create_scene_preview":
+			return _create_scene_preview(request)
 		"inspect_art_assets":
 			return _inspect_art_assets(request)
 		"run_design_lint":
@@ -503,6 +507,8 @@ func _editor_capabilities() -> Dictionary:
 			"create_sprite_frames",
 			"set_texture_import_preset",
 			"create_asset_manifest",
+			"create_asset_contact_sheet",
+			"create_scene_preview",
 			"inspect_art_assets",
 			"run_design_lint",
 			"scan_resource_filesystem",
@@ -526,6 +532,8 @@ func _editor_capabilities() -> Dictionary:
 			"create_sprite_frames",
 			"set_texture_import_preset",
 			"create_asset_manifest",
+			"create_asset_contact_sheet",
+			"create_scene_preview",
 			"inspect_art_assets",
 			"run_design_lint"
 		],
@@ -580,6 +588,8 @@ func _editor_capabilities() -> Dictionary:
 			"create_sprite_frames",
 			"set_texture_import_preset",
 			"create_asset_manifest",
+			"create_asset_contact_sheet",
+			"create_scene_preview",
 			"inspect_art_assets",
 			"run_design_lint"
 		],
@@ -709,6 +719,8 @@ func _command_schema_entries() -> Array:
 		_command_schema_entry("create_sprite_frames", "design", true, ["path", "animations"], ["replace"]),
 		_command_schema_entry("set_texture_import_preset", "design", true, ["paths"], ["preset", "settings", "create_sidecar", "reimport"]),
 		_command_schema_entry("create_asset_manifest", "design", true, [], ["root", "path", "replace"]),
+		_command_schema_entry("create_asset_contact_sheet", "design", true, [], ["root", "path", "report_path", "thumb_size", "columns", "max_count", "replace"]),
+		_command_schema_entry("create_scene_preview", "design", true, [], ["root", "path", "report_path", "scene_path", "width", "height", "replace"]),
 		_command_schema_entry("inspect_art_assets", "design", true, [], ["root", "extensions", "max_count", "write_report"]),
 		_command_schema_entry("run_design_lint", "design", true, [], ["root", "node_path", "scene_path", "write_report"]),
 		_command_schema_entry("set_resource_property", "resource", true, ["path", "property", "value"], []),
@@ -1342,6 +1354,10 @@ func _request_summary(command: String, data: Dictionary) -> String:
 			return "Updated " + str((data.get("updated", []) as Array).size()) + " texture import preset(s)"
 		"create_asset_manifest":
 			return "Created asset manifest " + str(data.get("path", ""))
+		"create_asset_contact_sheet":
+			return "Created asset contact sheet " + str(data.get("path", ""))
+		"create_scene_preview":
+			return "Created scene preview " + str(data.get("path", ""))
 		"inspect_art_assets":
 			return "Inspected " + str((data.get("files", []) as Array).size()) + " art asset(s)"
 		"run_design_lint":
@@ -2557,6 +2573,212 @@ func _create_asset_manifest(request: Dictionary) -> Dictionary:
 	}, [], [path])
 
 
+func _create_asset_contact_sheet(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Asset contact sheet root is invalid or protected.")
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("reports").path_join("asset_contact_sheet.png"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Asset contact sheet path is invalid or protected.")
+	if path.get_extension().to_lower() != "png":
+		return _response(false, "Asset contact sheet path must end with .png.")
+	var report_path := _normalize_resource_path(str(request.get("report_path", path.get_basename() + ".json")))
+	if report_path.is_empty() or not _design_path_allowed(report_path):
+		return _response(false, "Asset contact sheet report path is invalid or protected.")
+	if report_path.get_extension().to_lower() != "json":
+		return _response(false, "Asset contact sheet report path must end with .json.")
+	if not bool(request.get("replace", false)):
+		if FileAccess.file_exists(path):
+			return _response(false, "Asset contact sheet already exists: " + path)
+		if FileAccess.file_exists(report_path):
+			return _response(false, "Asset contact sheet report already exists: " + report_path)
+
+	var max_count := mini(maxi(int(request.get("max_count", 48)), 1), 240)
+	var thumb_size := mini(maxi(int(request.get("thumb_size", 72)), 24), 256)
+	var columns := mini(maxi(int(request.get("columns", 5)), 1), 12)
+	var files: Array = []
+	_collect_resource_file_infos(root, files, max_count, DESIGN_IMAGE_EXTENSIONS, false)
+	if files.is_empty():
+		return _response(false, "No image assets found under " + root + ".")
+
+	var sheet_data := _build_asset_contact_sheet(files, thumb_size, columns)
+	var sheet_image = sheet_data.get("image", null)
+	if not sheet_image is Image:
+		return _response(false, "Failed to build asset contact sheet image.")
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		},
+		{
+			"type": "write_file",
+			"path": report_path
+		},
+		{
+			"type": "make_dir",
+			"path": path.get_base_dir()
+		}
+	], "create_asset_contact_sheet " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; contact sheet was not saved.", {
+			"snapshot": snapshot
+		})
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create contact sheet directory: " + error_string(dir_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var save_error := (sheet_image as Image).save_png(path)
+	if save_error != OK:
+		return _response(false, "Failed to save asset contact sheet: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var report_payload := {
+		"schema_version": 1,
+		"root": root,
+		"path": path,
+		"generated_at": Time.get_datetime_string_from_system(),
+		"image_count": int(sheet_data.get("image_count", 0)),
+		"columns": columns,
+		"thumb_size": thumb_size,
+		"sheet_size": {
+			"width": int(sheet_data.get("width", 0)),
+			"height": int(sheet_data.get("height", 0))
+		},
+		"assets": sheet_data.get("assets", [])
+	}
+	var write_error := _write_json_file(report_path, report_payload)
+	if write_error != OK:
+		return _response(false, "Failed to write asset contact sheet report: " + error_string(write_error), {
+			"path": report_path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Asset contact sheet created.", {
+		"path": path,
+		"report_path": report_path,
+		"root": root,
+		"image_count": int(sheet_data.get("image_count", 0)),
+		"sheet_size": report_payload.get("sheet_size", {}),
+		"assets": sheet_data.get("assets", []),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path, report_path])
+
+
+func _create_scene_preview(request: Dictionary) -> Dictionary:
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Scene preview root is invalid or protected.")
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("reports").path_join("scene_preview.png"))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Scene preview path is invalid or protected.")
+	if path.get_extension().to_lower() != "png":
+		return _response(false, "Scene preview path must end with .png.")
+	var report_path := _normalize_resource_path(str(request.get("report_path", path.get_basename() + ".json")))
+	if report_path.is_empty() or not _design_path_allowed(report_path):
+		return _response(false, "Scene preview report path is invalid or protected.")
+	if report_path.get_extension().to_lower() != "json":
+		return _response(false, "Scene preview report path must end with .json.")
+	if not bool(request.get("replace", false)):
+		if FileAccess.file_exists(path):
+			return _response(false, "Scene preview already exists: " + path)
+		if FileAccess.file_exists(report_path):
+			return _response(false, "Scene preview report already exists: " + report_path)
+
+	var scene_path := _normalize_resource_path(str(request.get("scene_path", "")))
+	var temporary_root: Node = null
+	var scene_root: Node = null
+	if not scene_path.is_empty():
+		if not FileAccess.file_exists(scene_path):
+			return _response(false, "Scene preview scene does not exist: " + scene_path)
+		var packed = load(scene_path)
+		if not packed is PackedScene:
+			return _response(false, "Scene preview path is not a PackedScene: " + scene_path)
+		temporary_root = (packed as PackedScene).instantiate()
+		scene_root = temporary_root
+	else:
+		scene_root = _edited_scene_root()
+	if scene_root == null:
+		return _response(false, "No editable scene is currently open.")
+
+	var max_nodes := mini(maxi(int(request.get("max_nodes", 160)), 1), 500)
+	var nodes: Array = []
+	_collect_scene_preview_nodes(scene_root, scene_root, nodes, max_nodes, 0)
+	if temporary_root != null:
+		temporary_root.free()
+	if nodes.is_empty():
+		return _response(false, "Scene preview found no nodes.")
+
+	var width := mini(maxi(int(request.get("width", 720)), 240), 2048)
+	var height := mini(maxi(int(request.get("height", 420)), 180), 2048)
+	var preview_data := _build_scene_preview_image(nodes, width, height)
+	var preview_image = preview_data.get("image", null)
+	if not preview_image is Image:
+		return _response(false, "Failed to build scene preview image.")
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		},
+		{
+			"type": "write_file",
+			"path": report_path
+		},
+		{
+			"type": "make_dir",
+			"path": path.get_base_dir()
+		}
+	], "create_scene_preview " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; scene preview was not saved.", {
+			"snapshot": snapshot
+		})
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create scene preview directory: " + error_string(dir_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var save_error := (preview_image as Image).save_png(path)
+	if save_error != OK:
+		return _response(false, "Failed to save scene preview: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var report_payload := {
+		"schema_version": 1,
+		"path": path,
+		"scene_path": scene_path,
+		"scene_root": str(nodes[0].get("name", "")) if not nodes.is_empty() else "",
+		"generated_at": Time.get_datetime_string_from_system(),
+		"node_count": nodes.size(),
+		"canvas_size": {
+			"width": width,
+			"height": height
+		},
+		"nodes": preview_data.get("nodes", [])
+	}
+	var write_error := _write_json_file(report_path, report_payload)
+	if write_error != OK:
+		return _response(false, "Failed to write scene preview report: " + error_string(write_error), {
+			"path": report_path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Scene preview created.", {
+		"path": path,
+		"report_path": report_path,
+		"scene_path": scene_path,
+		"node_count": nodes.size(),
+		"canvas_size": report_payload.get("canvas_size", {}),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path, report_path])
+
+
 func _inspect_art_assets(request: Dictionary) -> Dictionary:
 	var root := _normalize_design_root(str(request.get("root", "res://")))
 	if root.is_empty():
@@ -2697,12 +2919,14 @@ func _design_status(request: Dictionary) -> Dictionary:
 	var audio_files: Array = []
 	var font_files: Array = []
 	var report_files: Array = []
+	var preview_files: Array = []
 	var manifest_candidates: Array = []
 	var asset_manifests: Array = []
 	_collect_resource_file_infos(root.path_join("palettes"), palette_files, 50, ["json"], false)
 	_collect_resource_file_infos(root.path_join("themes"), theme_files, 50, ["tres", "res"], false)
 	_collect_resource_file_infos(root.path_join("materials"), material_files, 80, ["tres", "res", "material", "gdshader"], false)
 	_collect_resource_file_infos(root.path_join("reports"), report_files, 50, ["json"], false)
+	_collect_resource_file_infos(root.path_join("reports"), preview_files, 50, ["png"], false)
 	_collect_resource_file_infos(root.path_join("sprites"), sprite_files, 120, DESIGN_IMAGE_EXTENSIONS + ["tres", "res"], false)
 	_collect_resource_file_infos(root.path_join("icons"), icon_files, 120, DESIGN_IMAGE_EXTENSIONS, false)
 	_collect_resource_file_infos(root, image_files, 120, DESIGN_IMAGE_EXTENSIONS, false)
@@ -2725,16 +2949,18 @@ func _design_status(request: Dictionary) -> Dictionary:
 		"sprite_count": sprite_files.size(),
 		"icon_count": icon_files.size(),
 		"audio_count": audio_files.size(),
-		"font_count": font_files.size(),
-		"report_count": report_files.size(),
-		"asset_manifest_count": asset_manifests.size(),
+			"font_count": font_files.size(),
+			"report_count": report_files.size(),
+			"preview_count": preview_files.size(),
+			"asset_manifest_count": asset_manifests.size(),
 		"palettes": palette_files,
 		"themes": theme_files,
 		"materials": material_files,
 		"sprites": sprite_files,
-		"icons": icon_files,
-		"asset_manifests": asset_manifests,
-		"reports": report_files
+			"icons": icon_files,
+			"asset_manifests": asset_manifests,
+			"previews": preview_files,
+			"reports": report_files
 	}
 
 
@@ -3823,6 +4049,230 @@ func _asset_kind_for_extension(extension: String) -> String:
 	if normalized == "json":
 		return "metadata"
 	return "unknown"
+
+
+func _build_asset_contact_sheet(files: Array, thumb_size: int, columns: int) -> Dictionary:
+	var padding := 10
+	var tile_width := thumb_size + padding * 2
+	var tile_height := thumb_size + padding * 2 + 10
+	var rows := int(ceil(float(files.size()) / float(columns)))
+	rows = maxi(rows, 1)
+	var width := columns * tile_width + padding
+	var height := rows * tile_height + padding
+	var sheet := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+	sheet.fill(Color(0.05, 0.07, 0.1, 1.0))
+	var assets: Array = []
+	for index in files.size():
+		var info := files[index] as Dictionary
+		var asset_path := str(info.get("path", ""))
+		var column := index % columns
+		var row := index / columns
+		var origin := Vector2i(padding + column * tile_width, padding + row * tile_height)
+		var tile_rect := Rect2i(origin, Vector2i(tile_width - padding, tile_height - padding))
+		var marker := _stable_preview_color(asset_path)
+		_draw_placeholder_rect(sheet, tile_rect, Color(0.08, 0.12, 0.18, 1.0))
+		_draw_preview_rect_outline(sheet, tile_rect, Color(0.18, 0.3, 0.48, 1.0), 1)
+		_draw_placeholder_rect(sheet, Rect2i(origin.x + 4, origin.y + tile_rect.size.y - 8, tile_rect.size.x - 8, 4), marker)
+		var thumbnail := _load_contact_sheet_thumbnail(asset_path, thumb_size)
+		var loaded := thumbnail != null
+		if loaded:
+			var destination := Vector2i(origin.x + padding + (thumb_size - thumbnail.get_width()) / 2, origin.y + padding + (thumb_size - thumbnail.get_height()) / 2)
+			sheet.blend_rect(thumbnail, Rect2i(0, 0, thumbnail.get_width(), thumbnail.get_height()), destination)
+		else:
+			_draw_placeholder_diamond(sheet, Vector2i(origin.x + tile_rect.size.x / 2, origin.y + padding + thumb_size / 2), thumb_size / 3, thumb_size / 3, marker)
+		assets.append({
+			"path": asset_path,
+			"name": str(info.get("name", asset_path.get_file())),
+			"extension": str(info.get("extension", "")),
+			"loaded": loaded,
+			"index": index,
+			"column": column,
+			"row": row,
+			"marker": "#" + marker.to_html(true)
+		})
+	return {
+		"image": sheet,
+		"assets": assets,
+		"image_count": assets.size(),
+		"columns": columns,
+		"rows": rows,
+		"width": width,
+		"height": height
+	}
+
+
+func _load_contact_sheet_thumbnail(path: String, thumb_size: int) -> Image:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return null
+	var image := Image.new()
+	var load_error := image.load(ProjectSettings.globalize_path(path))
+	if load_error != OK or image.get_width() <= 0 or image.get_height() <= 0:
+		return null
+	var scale := minf(float(thumb_size) / float(image.get_width()), float(thumb_size) / float(image.get_height()))
+	var resized_width := maxi(int(round(float(image.get_width()) * scale)), 1)
+	var resized_height := maxi(int(round(float(image.get_height()) * scale)), 1)
+	image.resize(resized_width, resized_height, Image.INTERPOLATE_NEAREST)
+	return image
+
+
+func _collect_scene_preview_nodes(node: Node, scene_root: Node, items: Array, max_count: int, depth: int) -> void:
+	if node == null or items.size() >= max_count:
+		return
+	var item := {
+		"name": str(node.name),
+		"class": node.get_class(),
+		"path": _node_path_from_root(node, scene_root),
+		"parent_path": "",
+		"depth": depth,
+		"index": items.size(),
+		"kind": "node",
+		"has_position": false,
+		"position": _encode_value(Vector2.ZERO),
+		"size": _encode_value(Vector2.ZERO)
+	}
+	var parent := node.get_parent()
+	if parent != null and parent != scene_root.get_parent():
+		item["parent_path"] = _node_path_from_root(parent, scene_root)
+	if node is Node2D:
+		var node_2d := node as Node2D
+		item["kind"] = "node2d"
+		item["has_position"] = true
+		item["position"] = _encode_value(node_2d.global_position)
+		item["size"] = _encode_value(Vector2(24, 24))
+	elif node is Control:
+		var control := node as Control
+		var rect := control.get_global_rect()
+		var control_size := rect.size
+		if control_size == Vector2.ZERO:
+			control_size = control.custom_minimum_size
+		if control_size == Vector2.ZERO:
+			control_size = Vector2(48, 32)
+		item["kind"] = "control"
+		item["has_position"] = true
+		item["position"] = _encode_value(rect.position + control_size * 0.5)
+		item["size"] = _encode_value(control_size)
+	items.append(item)
+	for child in node.get_children():
+		if child is Node:
+			_collect_scene_preview_nodes(child as Node, scene_root, items, max_count, depth + 1)
+
+
+func _build_scene_preview_image(nodes: Array, width: int, height: int) -> Dictionary:
+	var image := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.045, 0.055, 0.075, 1.0))
+	var padding := 28
+	var positioned: Array = []
+	for item in nodes:
+		if typeof(item) == TYPE_DICTIONARY and bool((item as Dictionary).get("has_position", false)):
+			positioned.append(item)
+	var use_world_layout := positioned.size() >= 2
+	var min_position := Vector2(INF, INF)
+	var max_position := Vector2(-INF, -INF)
+	if use_world_layout:
+		for item in positioned:
+			var position := _decode_value((item as Dictionary).get("position", _encode_value(Vector2.ZERO))) as Vector2
+			min_position.x = minf(min_position.x, position.x)
+			min_position.y = minf(min_position.y, position.y)
+			max_position.x = maxf(max_position.x, position.x)
+			max_position.y = maxf(max_position.y, position.y)
+		if absf(max_position.x - min_position.x) < 1.0 and absf(max_position.y - min_position.y) < 1.0:
+			use_world_layout = false
+
+	var preview_nodes: Array = []
+	var path_to_position := {}
+	for index in nodes.size():
+		var item := (nodes[index] as Dictionary).duplicate(true)
+		var preview_position := Vector2.ZERO
+		if use_world_layout and bool(item.get("has_position", false)):
+			var position := _decode_value(item.get("position", _encode_value(Vector2.ZERO))) as Vector2
+			var span := max_position - min_position
+			var normalized := Vector2(0.5, 0.5)
+			if absf(span.x) >= 1.0:
+				normalized.x = (position.x - min_position.x) / span.x
+			if absf(span.y) >= 1.0:
+				normalized.y = (position.y - min_position.y) / span.y
+			preview_position = Vector2(padding + normalized.x * float(width - padding * 2), padding + normalized.y * float(height - padding * 2))
+		else:
+			var row_height := maxf(float(height - padding * 2) / maxf(float(nodes.size()), 1.0), 18.0)
+			preview_position = Vector2(minf(float(padding + int(item.get("depth", 0)) * 78), float(width - padding)), float(padding) + float(index) * row_height + row_height * 0.5)
+		var color := _scene_preview_color(item)
+		item["preview_position"] = _encode_value(preview_position)
+		item["preview_color"] = "#" + color.to_html(true)
+		preview_nodes.append(item)
+		path_to_position[str(item.get("path", ""))] = preview_position
+
+	for item in preview_nodes:
+		var parent_path := str((item as Dictionary).get("parent_path", ""))
+		if parent_path.is_empty() or not path_to_position.has(parent_path):
+			continue
+		var from_position: Vector2 = path_to_position[parent_path]
+		var to_position := _decode_value((item as Dictionary).get("preview_position", _encode_value(Vector2.ZERO))) as Vector2
+		_draw_preview_line(image, Vector2i(from_position), Vector2i(to_position), Color(0.18, 0.28, 0.42, 0.95), 1)
+
+	for item in preview_nodes:
+		var item_dict := item as Dictionary
+		var center := Vector2i(_decode_value(item_dict.get("preview_position", _encode_value(Vector2.ZERO))) as Vector2)
+		var color := Color.from_string(str(item_dict.get("preview_color", "#64d995ff")), Color(0.39, 0.86, 0.58, 1.0))
+		match str(item_dict.get("kind", "node")):
+			"control":
+				var size := _decode_value(item_dict.get("size", _encode_value(Vector2(48, 32)))) as Vector2
+				var preview_size := Vector2i(mini(maxi(int(size.x * 0.18), 12), 54), mini(maxi(int(size.y * 0.18), 10), 42))
+				var rect := Rect2i(center - preview_size / 2, preview_size)
+				_draw_placeholder_rect(image, rect, color.darkened(0.25))
+				_draw_preview_rect_outline(image, rect, color, 2)
+			"node2d":
+				_draw_placeholder_circle(image, center, 8, color.lightened(0.2))
+				_draw_placeholder_circle(image, center, 5, color)
+			_:
+				_draw_placeholder_diamond(image, center, 8, 8, color)
+		if str(item_dict.get("path", "")) == ".":
+			_draw_preview_rect_outline(image, Rect2i(center - Vector2i(12, 12), Vector2i(24, 24)), Color(1.0, 0.82, 0.28, 1.0), 1)
+
+	return {
+		"image": image,
+		"nodes": preview_nodes,
+		"layout": "world" if use_world_layout else "tree"
+	}
+
+
+func _scene_preview_color(item: Dictionary) -> Color:
+	var node_class := str(item.get("class", ""))
+	if node_class.contains("Camera"):
+		return Color(0.55, 0.72, 1.0, 1.0)
+	if node_class.contains("Collision"):
+		return Color(1.0, 0.65, 0.3, 1.0)
+	if node_class.contains("Sprite") or node_class.contains("Animated"):
+		return Color(0.42, 0.86, 0.62, 1.0)
+	if node_class.contains("Button") or node_class.contains("Label") or str(item.get("kind", "")) == "control":
+		return Color(0.64, 0.56, 1.0, 1.0)
+	if str(item.get("path", "")) == ".":
+		return Color(1.0, 0.82, 0.28, 1.0)
+	return _stable_preview_color(str(item.get("path", "")))
+
+
+func _stable_preview_color(text: String) -> Color:
+	var hash := 0
+	for index in text.length():
+		hash = int((hash * 31 + text.unicode_at(index)) % 9973)
+	var hue := fmod(float(hash) / 9973.0 + 0.18, 1.0)
+	return Color.from_hsv(hue, 0.58, 0.92, 1.0)
+
+
+func _draw_preview_rect_outline(image: Image, rect: Rect2i, color: Color, thickness: int) -> void:
+	var t := maxi(thickness, 1)
+	_draw_placeholder_rect(image, Rect2i(rect.position.x, rect.position.y, rect.size.x, t), color)
+	_draw_placeholder_rect(image, Rect2i(rect.position.x, rect.position.y + rect.size.y - t, rect.size.x, t), color)
+	_draw_placeholder_rect(image, Rect2i(rect.position.x, rect.position.y, t, rect.size.y), color)
+	_draw_placeholder_rect(image, Rect2i(rect.position.x + rect.size.x - t, rect.position.y, t, rect.size.y), color)
+
+
+func _draw_preview_line(image: Image, start: Vector2i, end: Vector2i, color: Color, thickness: int) -> void:
+	var delta := end - start
+	var steps := maxi(maxi(abs(delta.x), abs(delta.y)), 1)
+	for index in range(steps + 1):
+		var ratio := float(index) / float(steps)
+		var point := Vector2i(roundi(lerpf(float(start.x), float(end.x), ratio)), roundi(lerpf(float(start.y), float(end.y), ratio)))
+		_draw_placeholder_circle(image, point, maxi(thickness, 1), color)
 
 
 func _draw_placeholder_rect(image: Image, rect: Rect2i, color: Color) -> void:

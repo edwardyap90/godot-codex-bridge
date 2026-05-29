@@ -182,6 +182,8 @@ calling model APIs from the plugin.
 {"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}
 {"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}
 {"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}
+{"command":"create_asset_contact_sheet","root":"res://art","path":"res://art/reports/asset_contact_sheet.png","replace":true}
+{"command":"create_scene_preview","root":"res://art","path":"res://art/reports/scene_preview.png","scene_path":"res://ui/hud.tscn","replace":true}
 {"command":"inspect_art_assets","root":"res://art","max_texture_size":2048,"write_report":true}
 {"command":"run_design_lint","root":"res://art","scene_path":"res://ui/hud.tscn","write_report":true}
 ```
@@ -194,6 +196,9 @@ transparent PNGs for early gameplay prototypes. `create_sprite_frames` builds a
 Godot `SpriteFrames` resource from existing image paths. `set_texture_import_preset`
 updates `.import` sidecars for common 2D art workflows, and
 `create_asset_manifest` writes a machine-readable asset index for Codex.
+`create_asset_contact_sheet` writes a PNG overview of image assets plus a JSON
+report, and `create_scene_preview` writes a schematic scene preview image plus
+node metadata for review inside Godot.
 `run_design_lint` combines Design System v2 validation, UI scene checks, and
 asset checks into one project-local report.
 

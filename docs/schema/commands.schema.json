@@ -105,6 +105,8 @@
         "create_sprite_frames",
         "set_texture_import_preset",
         "create_asset_manifest",
+        "create_asset_contact_sheet",
+        "create_scene_preview",
         "inspect_art_assets",
         "run_design_lint",
         "scan_resource_filesystem",

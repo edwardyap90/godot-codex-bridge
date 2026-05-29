@@ -39,10 +39,10 @@ class FakeBridge:
 	func console_state() -> Dictionary:
 		return {
 			"status": {
-				"bridge_version": "0.6.0",
+				"bridge_version": "0.6.1",
 				"control_plane": {
 					"schema_version": 2,
-					"bridge_version": "0.6.0",
+					"bridge_version": "0.6.1",
 					"godot_version": {
 						"string": "4.6.2"
 					}
@@ -74,6 +74,7 @@ class FakeBridge:
 					"audio_count": 0,
 					"font_count": 0,
 					"asset_manifest_count": 1,
+					"preview_count": 2,
 					"report_count": 1,
 					"palettes": [
 						{
@@ -93,6 +94,14 @@ class FakeBridge:
 					"asset_manifests": [
 						{
 							"path": "res://art/asset_manifest.json"
+						}
+					],
+					"previews": [
+						{
+							"path": "res://art/reports/asset_contact_sheet.png"
+						},
+						{
+							"path": "res://art/reports/scene_preview.png"
 						}
 					],
 					"reports": [
@@ -128,6 +137,7 @@ class FakeBridge:
 				"audio_count": 0,
 				"font_count": 0,
 				"asset_manifest_count": 1,
+				"preview_count": 2,
 				"report_count": 1,
 				"palettes": [
 					{
@@ -147,6 +157,14 @@ class FakeBridge:
 				"asset_manifests": [
 					{
 						"path": "res://art/asset_manifest.json"
+					}
+				],
+				"previews": [
+					{
+						"path": "res://art/reports/asset_contact_sheet.png"
+					},
+					{
+						"path": "res://art/reports/scene_preview.png"
 					}
 				],
 				"reports": [
@@ -228,9 +246,12 @@ func _init() -> void:
 	passed = passed and not dock.stop_button.disabled
 	passed = passed and dock.design_label.text.contains("1 palettes")
 	passed = passed and dock.design_label.text.contains("1 sprites")
+	passed = passed and dock.design_label.text.contains("2 previews")
 	passed = passed and dock.design_detail_label.text.contains("smoke_palette")
 	passed = passed and dock.design_detail_label.text.contains("smoke_player")
 	passed = passed and dock.design_detail_label.text.contains("asset_manifest")
+	passed = passed and dock.design_detail_label.text.contains("asset_contact_sheet")
+	passed = passed and dock.design_detail_label.text.contains("scene_preview")
 	passed = passed and dock.design_detail_label.text.contains("design_lint_report")
 	dock._on_apply_pressed()
 	passed = passed and bridge.applied_queue_id == "queue_smoke"

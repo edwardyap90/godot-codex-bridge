@@ -384,7 +384,7 @@ func _populate_design_panel(state: Dictionary) -> void:
 	var status := state.get("status", {}) as Dictionary
 	var design := state.get("design", status.get("design", {})) as Dictionary
 	if design_label != null:
-		design_label.text = "Design: " + str(design.get("palette_count", 0)) + " palettes / " + str(design.get("theme_count", 0)) + " themes / " + str(design.get("sprite_count", 0)) + " sprites / " + str(design.get("asset_manifest_count", 0)) + " manifests"
+		design_label.text = "Design: " + str(design.get("palette_count", 0)) + " palettes / " + str(design.get("theme_count", 0)) + " themes / " + str(design.get("sprite_count", 0)) + " sprites / " + str(design.get("asset_manifest_count", 0)) + " manifests / " + str(design.get("preview_count", 0)) + " previews"
 	if design_detail_label == null:
 		return
 	if design.is_empty():
@@ -402,6 +402,7 @@ func _populate_design_panel(state: Dictionary) -> void:
 		"Audio: " + str(design.get("audio_count", 0)),
 		"Fonts: " + str(design.get("font_count", 0)),
 		"Asset manifests: " + str(design.get("asset_manifest_count", 0)),
+		"Previews: " + str(design.get("preview_count", 0)),
 		"Reports: " + str(design.get("report_count", 0))
 	]
 	var palettes := design.get("palettes", []) as Array
@@ -430,6 +431,13 @@ func _populate_design_panel(state: Dictionary) -> void:
 		lines.append("")
 		lines.append("Asset manifests:")
 		for item in manifests.slice(0, mini(manifests.size(), 4)):
+			if typeof(item) == TYPE_DICTIONARY:
+				lines.append("- " + str((item as Dictionary).get("path", "")))
+	var previews := design.get("previews", []) as Array
+	if not previews.is_empty():
+		lines.append("")
+		lines.append("Recent previews:")
+		for item in previews.slice(0, mini(previews.size(), 4)):
 			if typeof(item) == TYPE_DICTIONARY:
 				lines.append("- " + str((item as Dictionary).get("path", "")))
 	var reports := design.get("reports", []) as Array
