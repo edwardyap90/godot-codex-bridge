@@ -658,6 +658,39 @@ func _init() -> void:
 			}
 		]
 	})
+	var sprite_frames_report_path := design_root.path_join("reports/smoke_frames_animation_report.json")
+	var inspect_sprite_frames_result: Dictionary = bridge.handle_request({
+		"command": "inspect_sprite_frames",
+		"path": sprite_frames_path,
+		"expected_animations": ["idle", "run"],
+		"write_report": true,
+		"report_path": sprite_frames_report_path
+	})
+	var animated_sprite_result: Dictionary = bridge.handle_request({
+		"command": "create_animated_sprite",
+		"parent_path": ".",
+		"name": "SmokeAnimated",
+		"sprite_frames_path": sprite_frames_path,
+		"animation": "idle",
+		"autoplay": true,
+		"position": {
+			"type": "Vector2",
+			"x": 12,
+			"y": 18
+		}
+	})
+	var animation_preview_path := design_root.path_join("reports/smoke_frames_animation_preview.png")
+	var animation_preview_report_path := design_root.path_join("reports/smoke_frames_animation_preview.json")
+	var animation_preview_result: Dictionary = bridge.handle_request({
+		"command": "create_animation_preview",
+		"sprite_frames_path": sprite_frames_path,
+		"root": design_root,
+		"path": animation_preview_path,
+		"report_path": animation_preview_report_path,
+		"thumb_size": 32,
+		"columns": 2,
+		"replace": true
+	})
 	var texture_import_result: Dictionary = bridge.handle_request({
 		"command": "set_texture_import_preset",
 		"paths": [placeholder_sprite_path],
@@ -765,6 +798,7 @@ func _init() -> void:
 	var renamed_queued_child := scene_root.get_node_or_null("RenamedQueuedChild") as Node2D
 	var duplicated_queued_child := scene_root.get_node_or_null("DuplicatedQueuedChild")
 	var discarded_child := scene_root.get_node_or_null("DiscardedChild")
+	var animated_sprite_node := scene_root.get_node_or_null("SmokeAnimated") as AnimatedSprite2D
 	var action_data := action_result.get("data", {}) as Dictionary
 	var executor_result := action_data.get("action_result", {}) as Dictionary
 	var visual_feedback := action_data.get("visual_feedback", {}) as Dictionary
@@ -815,6 +849,9 @@ func _init() -> void:
 	var placeholder_icon_paths := placeholder_icons_data.get("paths", []) as Array
 	var sprite_frames_data := sprite_frames_result.get("data", {}) as Dictionary
 	var sprite_frame_animations := sprite_frames_data.get("animations", []) as Array
+	var inspect_sprite_frames_data := inspect_sprite_frames_result.get("data", {}) as Dictionary
+	var animated_sprite_data := animated_sprite_result.get("data", {}) as Dictionary
+	var animation_preview_data := animation_preview_result.get("data", {}) as Dictionary
 	var texture_import_data := texture_import_result.get("data", {}) as Dictionary
 	var texture_import_updated := texture_import_data.get("updated", []) as Array
 	var asset_manifest_data := asset_manifest_result.get("data", {}) as Dictionary
@@ -858,6 +895,9 @@ func _init() -> void:
 	passed = passed and bool(capabilities_result.get("ok", false))
 	passed = passed and (capabilities.get("inspector", []) as Array).has("get_inspector_properties")
 	passed = passed and (capabilities.get("animation", []) as Array).has("add_animation_value_key")
+	passed = passed and (capabilities.get("animation", []) as Array).has("inspect_sprite_frames")
+	passed = passed and (capabilities.get("animation", []) as Array).has("create_animated_sprite")
+	passed = passed and (capabilities.get("animation", []) as Array).has("create_animation_preview")
 	passed = passed and (capabilities.get("design", []) as Array).has("create_ui_theme")
 	passed = passed and (capabilities.get("design", []) as Array).has("create_ui_template")
 	passed = passed and (capabilities.get("design", []) as Array).has("create_placeholder_sprite")
@@ -868,13 +908,16 @@ func _init() -> void:
 	passed = passed and int(capabilities_v2.get("schema_version", 0)) == 2
 	passed = passed and (capabilities_v2.get("safe_action_types", []) as Array).has("rename_node")
 	passed = passed and bool(command_schema_result.get("ok", false))
-	passed = passed and str(command_schema.get("bridge_version", "")) == "0.6.1"
+	passed = passed and str(command_schema.get("bridge_version", "")) == "0.7.0"
 	passed = passed and command_schema_entries.size() > 20
 	passed = passed and _schema_has_command(command_schema_entries, "create_design_system")
 	passed = passed and _schema_has_command(command_schema_entries, "apply_ui_theme")
 	passed = passed and _schema_has_command(command_schema_entries, "run_design_lint")
 	passed = passed and _schema_has_command(command_schema_entries, "create_placeholder_sprite")
 	passed = passed and _schema_has_command(command_schema_entries, "set_texture_import_preset")
+	passed = passed and _schema_has_command(command_schema_entries, "inspect_sprite_frames")
+	passed = passed and _schema_has_command(command_schema_entries, "create_animated_sprite")
+	passed = passed and _schema_has_command(command_schema_entries, "create_animation_preview")
 	passed = passed and _schema_has_command(command_schema_entries, "create_asset_contact_sheet")
 	passed = passed and _schema_has_command(command_schema_entries, "create_scene_preview")
 	passed = passed and bool(raw_status_result.get("ok", false))
@@ -1005,6 +1048,20 @@ func _init() -> void:
 	passed = passed and bool(sprite_frames_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(sprite_frames_path))
 	passed = passed and sprite_frame_animations.size() == 1
+	passed = passed and bool(inspect_sprite_frames_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(sprite_frames_report_path))
+	passed = passed and int(inspect_sprite_frames_data.get("animation_count", 0)) == 1
+	passed = passed and int(inspect_sprite_frames_data.get("issue_count", 0)) >= 1
+	passed = passed and bool(animated_sprite_result.get("ok", false))
+	passed = passed and animated_sprite_node != null
+	passed = passed and animated_sprite_node.sprite_frames != null
+	passed = passed and str(animated_sprite_node.animation) == "idle"
+	passed = passed and animated_sprite_node.position == Vector2(12, 18)
+	passed = passed and str((animated_sprite_data.get("node", {}) as Dictionary).get("path", "")) == "SmokeAnimated"
+	passed = passed and bool(animation_preview_result.get("ok", false))
+	passed = passed and bool(FileAccess.file_exists(animation_preview_path))
+	passed = passed and bool(FileAccess.file_exists(animation_preview_report_path))
+	passed = passed and int(animation_preview_data.get("animation_count", 0)) == 1
 	passed = passed and bool(texture_import_result.get("ok", false))
 	passed = passed and texture_import_updated.size() == 1
 	passed = passed and bool(FileAccess.file_exists(placeholder_sprite_path + ".import"))
@@ -1031,7 +1088,7 @@ func _init() -> void:
 	passed = passed and int(design_status.get("sprite_count", 0)) >= 1
 	passed = passed and int(design_status.get("icon_count", 0)) >= 1
 	passed = passed and int(design_status.get("asset_manifest_count", 0)) >= 1
-	passed = passed and int(design_status.get("preview_count", 0)) >= 2
+	passed = passed and int(design_status.get("preview_count", 0)) >= 3
 	passed = passed and int(design_status.get("report_count", 0)) >= 1
 	passed = passed and bool(design_lint_result.get("ok", false))
 	passed = passed and bool(FileAccess.file_exists(str(design_lint_data.get("report_path", ""))))

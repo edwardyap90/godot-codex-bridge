@@ -107,6 +107,9 @@ tools/godot_bridge_send.sh --json '{"command":"create_material_pack","root":"res
 tools/godot_bridge_send.sh --json '{"command":"create_placeholder_sprite","path":"res://art/sprites/player.png","role":"player","width":64,"height":64,"replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_placeholder_icon_set","root":"res://art/icons","icons":["health","coin","key"],"size":32,"replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"inspect_sprite_frames","path":"res://art/sprites/player_frames.tres","expected_animations":["idle","run"],"write_report":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_animated_sprite","parent_path":".","name":"PlayerAnimator","sprite_frames_path":"res://art/sprites/player_frames.tres","animation":"idle","autoplay":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_animation_preview","sprite_frames_path":"res://art/sprites/player_frames.tres","path":"res://art/reports/player_animation_preview.png","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_asset_contact_sheet","root":"res://art","path":"res://art/reports/asset_contact_sheet.png","replace":true}'
@@ -117,10 +120,11 @@ tools/godot_bridge_send.sh --json '{"command":"run_design_lint","root":"res://ar
 
 The Design tab shows palette/theme/material counts and recent art-direction
 resources and reports, so the user can see visual-system work from inside
-Godot. For v0.6-style UI and asset work, Codex should generate or refresh the
-asset manifest, create a contact sheet or scene preview when useful, then run
-`validate_design_system`, `inspect_ui_scene`, `inspect_art_assets`, or
-`run_design_lint` before claiming visual changes are complete.
+Godot. For v0.7-style UI, asset, and animation work, Codex should generate or
+refresh the asset manifest, create a contact sheet, animation preview, or scene
+preview when useful, then run `validate_design_system`, `inspect_ui_scene`,
+`inspect_sprite_frames`, `inspect_art_assets`, or `run_design_lint` before
+claiming visual changes are complete.
 
 ## Controlled Raw API
 

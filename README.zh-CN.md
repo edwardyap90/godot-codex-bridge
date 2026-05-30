@@ -28,6 +28,7 @@
 - 新增 Art Direction Kit：可创建设计系统、调色板、UI Theme、tint 材质包，并生成美术资源检查报告。
 - 新增 Visual Design Control Plane：Design System v2、UI 模板场景、UI 布局检查和设计 lint 报告。
 - 新增美术资源管线 helper：占位角色/图标 PNG、`SpriteFrames`、纹理导入预设、资产 manifest、资源缩略总览图和场景预览图。
+- 新增 Animation Production Kit：检查 `SpriteFrames`、创建 `AnimatedSprite2D` 节点、导出动画预览图。
 - 新增受控 Raw API 模式，默认关闭，只允许白名单调用，不执行任意脚本。
 
 ## 安装
@@ -131,6 +132,9 @@ tools/godot_bridge_send.sh --json '{"command":"create_material_pack","root":"res
 tools/godot_bridge_send.sh --json '{"command":"create_placeholder_sprite","path":"res://art/sprites/player.png","role":"player","width":64,"height":64,"replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_placeholder_icon_set","root":"res://art/icons","icons":["health","coin","key"],"size":32,"replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}'
+tools/godot_bridge_send.sh --json '{"command":"inspect_sprite_frames","path":"res://art/sprites/player_frames.tres","expected_animations":["idle","run"],"write_report":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_animated_sprite","parent_path":".","name":"PlayerAnimator","sprite_frames_path":"res://art/sprites/player_frames.tres","animation":"idle","autoplay":true}'
+tools/godot_bridge_send.sh --json '{"command":"create_animation_preview","sprite_frames_path":"res://art/sprites/player_frames.tres","path":"res://art/reports/player_animation_preview.png","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}'
 tools/godot_bridge_send.sh --json '{"command":"create_asset_contact_sheet","root":"res://art","path":"res://art/reports/asset_contact_sheet.png","replace":true}'

@@ -180,6 +180,9 @@ calling model APIs from the plugin.
 {"command":"create_placeholder_sprite","path":"res://art/sprites/player.png","role":"player","width":64,"height":64,"replace":true}
 {"command":"create_placeholder_icon_set","root":"res://art/icons","icons":["health","coin","key"],"size":32,"replace":true}
 {"command":"create_sprite_frames","path":"res://art/sprites/player_frames.tres","animations":[{"name":"idle","frames":["res://art/sprites/player.png"],"fps":6,"loop":true}],"replace":true}
+{"command":"inspect_sprite_frames","path":"res://art/sprites/player_frames.tres","expected_animations":["idle","run","attack"],"write_report":true}
+{"command":"create_animated_sprite","parent_path":"Player","name":"Animator","sprite_frames_path":"res://art/sprites/player_frames.tres","animation":"idle","autoplay":true}
+{"command":"create_animation_preview","sprite_frames_path":"res://art/sprites/player_frames.tres","path":"res://art/reports/player_animation_preview.png","replace":true}
 {"command":"set_texture_import_preset","paths":["res://art/sprites/player.png"],"preset":"pixel_art","create_sidecar":true,"reimport":true}
 {"command":"create_asset_manifest","root":"res://art","path":"res://art/asset_manifest.json","replace":true}
 {"command":"create_asset_contact_sheet","root":"res://art","path":"res://art/reports/asset_contact_sheet.png","replace":true}
@@ -193,7 +196,11 @@ calling model APIs from the plugin.
 counts, import-sidecar gaps, naming issues, and oversized textures.
 `create_placeholder_sprite` and `create_placeholder_icon_set` generate simple
 transparent PNGs for early gameplay prototypes. `create_sprite_frames` builds a
-Godot `SpriteFrames` resource from existing image paths. `set_texture_import_preset`
+Godot `SpriteFrames` resource from existing image paths. `inspect_sprite_frames`
+checks animation names, frame counts, frame sizes, and optional expected states.
+`create_animated_sprite` adds a visible `AnimatedSprite2D` to the open scene and
+focuses it in the editor. `create_animation_preview` exports a PNG animation
+preview sheet plus a JSON report. `set_texture_import_preset`
 updates `.import` sidecars for common 2D art workflows, and
 `create_asset_manifest` writes a machine-readable asset index for Codex.
 `create_asset_contact_sheet` writes a PNG overview of image assets plus a JSON

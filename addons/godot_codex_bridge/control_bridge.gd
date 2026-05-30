@@ -14,7 +14,7 @@ const RESOURCE_FILE_LIMIT_DEFAULT := 300
 const PLUGIN_ROOT := "res://addons/godot_codex_bridge"
 const CONTROL_PLANE_SCHEMA_VERSION := 2
 const RAW_AUDIT_LIMIT := 100
-const BRIDGE_VERSION := "0.6.1"
+const BRIDGE_VERSION := "0.7.0"
 const DESIGN_IMAGE_EXTENSIONS := ["png", "jpg", "jpeg", "webp", "svg", "tga", "bmp", "exr", "hdr"]
 const DESIGN_AUDIO_EXTENSIONS := ["wav", "ogg", "mp3"]
 const DESIGN_FONT_EXTENSIONS := ["ttf", "otf", "woff", "woff2"]
@@ -284,6 +284,12 @@ func _handle_command(command: String, request: Dictionary) -> Dictionary:
 			return _create_placeholder_icon_set(request)
 		"create_sprite_frames":
 			return _create_sprite_frames(request)
+		"inspect_sprite_frames":
+			return _inspect_sprite_frames(request)
+		"create_animated_sprite":
+			return _create_animated_sprite(request)
+		"create_animation_preview":
+			return _create_animation_preview(request)
 		"set_texture_import_preset":
 			return _set_texture_import_preset(request)
 		"create_asset_manifest":
@@ -502,10 +508,13 @@ func _editor_capabilities() -> Dictionary:
 			"create_ui_template",
 			"inspect_ui_scene",
 			"create_material_pack",
-			"create_placeholder_sprite",
-			"create_placeholder_icon_set",
-			"create_sprite_frames",
-			"set_texture_import_preset",
+				"create_placeholder_sprite",
+				"create_placeholder_icon_set",
+				"create_sprite_frames",
+				"inspect_sprite_frames",
+				"create_animated_sprite",
+				"create_animation_preview",
+				"set_texture_import_preset",
 			"create_asset_manifest",
 			"create_asset_contact_sheet",
 			"create_scene_preview",
@@ -527,20 +536,26 @@ func _editor_capabilities() -> Dictionary:
 			"create_ui_template",
 			"inspect_ui_scene",
 			"create_material_pack",
-			"create_placeholder_sprite",
-			"create_placeholder_icon_set",
-			"create_sprite_frames",
-			"set_texture_import_preset",
+				"create_placeholder_sprite",
+				"create_placeholder_icon_set",
+				"create_sprite_frames",
+				"inspect_sprite_frames",
+				"create_animated_sprite",
+				"create_animation_preview",
+				"set_texture_import_preset",
 			"create_asset_manifest",
 			"create_asset_contact_sheet",
 			"create_scene_preview",
 			"inspect_art_assets",
 			"run_design_lint"
 		],
-		"animation": [
-			"get_animation_players",
-			"get_animation_player_info",
-			"create_animation",
+			"animation": [
+				"get_animation_players",
+				"get_animation_player_info",
+				"inspect_sprite_frames",
+				"create_animated_sprite",
+				"create_animation_preview",
+				"create_animation",
 			"set_animation_properties",
 			"add_animation_value_key"
 		],
@@ -583,10 +598,13 @@ func _editor_capabilities() -> Dictionary:
 			"create_ui_template",
 			"inspect_ui_scene",
 			"create_material_pack",
-			"create_placeholder_sprite",
-			"create_placeholder_icon_set",
-			"create_sprite_frames",
-			"set_texture_import_preset",
+				"create_placeholder_sprite",
+				"create_placeholder_icon_set",
+				"create_sprite_frames",
+				"inspect_sprite_frames",
+				"create_animated_sprite",
+				"create_animation_preview",
+				"set_texture_import_preset",
 			"create_asset_manifest",
 			"create_asset_contact_sheet",
 			"create_scene_preview",
@@ -717,6 +735,9 @@ func _command_schema_entries() -> Array:
 		_command_schema_entry("create_placeholder_sprite", "design", true, [], ["path", "root", "name", "role", "width", "height", "shape", "color", "replace"]),
 		_command_schema_entry("create_placeholder_icon_set", "design", true, [], ["root", "icons", "size", "palette_path", "replace"]),
 		_command_schema_entry("create_sprite_frames", "design", true, ["path", "animations"], ["replace"]),
+		_command_schema_entry("inspect_sprite_frames", "animation", true, ["path"], ["expected_animations", "write_report", "report_path"]),
+		_command_schema_entry("create_animated_sprite", "animation", true, ["sprite_frames_path"], ["parent_path", "name", "animation", "position", "speed_scale", "autoplay", "centered"]),
+		_command_schema_entry("create_animation_preview", "animation", true, ["sprite_frames_path"], ["root", "path", "report_path", "thumb_size", "columns", "replace"]),
 		_command_schema_entry("set_texture_import_preset", "design", true, ["paths"], ["preset", "settings", "create_sidecar", "reimport"]),
 		_command_schema_entry("create_asset_manifest", "design", true, [], ["root", "path", "replace"]),
 		_command_schema_entry("create_asset_contact_sheet", "design", true, [], ["root", "path", "report_path", "thumb_size", "columns", "max_count", "replace"]),
@@ -1350,6 +1371,12 @@ func _request_summary(command: String, data: Dictionary) -> String:
 			return "Created " + str((data.get("paths", []) as Array).size()) + " placeholder icon(s)"
 		"create_sprite_frames":
 			return "Created SpriteFrames " + str(data.get("path", ""))
+		"inspect_sprite_frames":
+			return "Inspected SpriteFrames " + str(data.get("path", ""))
+		"create_animated_sprite":
+			return "Created AnimatedSprite2D " + str((data.get("node", {}) as Dictionary).get("path", ""))
+		"create_animation_preview":
+			return "Created animation preview " + str(data.get("path", ""))
 		"set_texture_import_preset":
 			return "Updated " + str((data.get("updated", []) as Array).size()) + " texture import preset(s)"
 		"create_asset_manifest":
@@ -2455,7 +2482,224 @@ func _create_sprite_frames(request: Dictionary) -> Dictionary:
 		"animations": animations,
 		"dependencies": dependencies,
 		"snapshot": _snapshot_summary(snapshot)
-	}, [], [path])
+		}, [], [path])
+
+
+func _inspect_sprite_frames(request: Dictionary) -> Dictionary:
+	var path := _normalize_resource_path(str(request.get("path", request.get("sprite_frames_path", request.get("resource_path", "")))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "SpriteFrames path is invalid or protected.")
+	if not FileAccess.file_exists(path):
+		return _response(false, "SpriteFrames file does not exist: " + path)
+	var resource = load(path)
+	if not resource is SpriteFrames:
+		return _response(false, "Resource is not SpriteFrames: " + path)
+
+	var report := _sprite_frames_report(resource as SpriteFrames, path, request.get("expected_animations", []))
+	var changed_paths: Array = []
+	if bool(request.get("write_report", false)):
+		var report_path := _normalize_resource_path(str(request.get("report_path", path.get_basename() + "_animation_report.json")))
+		if report_path.is_empty() or not _design_path_allowed(report_path):
+			return _response(false, "SpriteFrames report path is invalid or protected.")
+		if report_path.get_extension().to_lower() != "json":
+			return _response(false, "SpriteFrames report path must end with .json.")
+		var snapshot := _create_snapshot([
+			{
+				"type": "write_file",
+				"path": report_path
+			}
+		], "inspect_sprite_frames " + path)
+		if not bool(snapshot.get("ok", true)):
+			return _response(false, "Failed to create pre-change snapshot; SpriteFrames report was not saved.", {
+				"snapshot": snapshot
+			})
+		report["report_path"] = report_path
+		report["snapshot"] = _snapshot_summary(snapshot)
+		var write_error := _write_json_file(report_path, report)
+		if write_error != OK:
+			return _response(false, "Failed to write SpriteFrames report: " + error_string(write_error), {
+				"path": report_path,
+				"snapshot": _snapshot_summary(snapshot)
+			})
+		changed_paths.append(report_path)
+		_refresh_editor_filesystem()
+
+	return _response(true, "SpriteFrames inspected.", report, report.get("issues", []) as Array, changed_paths)
+
+
+func _create_animated_sprite(request: Dictionary) -> Dictionary:
+	var sprite_frames_path := _normalize_resource_path(str(request.get("sprite_frames_path", request.get("path", ""))))
+	if sprite_frames_path.is_empty() or not _design_path_allowed(sprite_frames_path):
+		return _response(false, "SpriteFrames path is invalid or protected.")
+	if not FileAccess.file_exists(sprite_frames_path):
+		return _response(false, "SpriteFrames file does not exist: " + sprite_frames_path)
+	var resource = load(sprite_frames_path)
+	if not resource is SpriteFrames:
+		return _response(false, "Resource is not SpriteFrames: " + sprite_frames_path)
+	var sprite_frames := resource as SpriteFrames
+	var animation_names := _sprite_frame_animation_names(sprite_frames)
+	if animation_names.is_empty():
+		return _response(false, "SpriteFrames has no animations: " + sprite_frames_path)
+
+	var parent_path := str(request.get("parent_path", ".")).strip_edges()
+	if parent_path.is_empty():
+		parent_path = "."
+	var parent := _find_scene_node(parent_path)
+	if parent == null:
+		return _response(false, "Parent node not found: " + parent_path)
+	var scene_root := _edited_scene_root()
+	if scene_root == null:
+		return _response(false, "No editable scene is currently open.")
+
+	var node_name := str(request.get("name", "AnimatedSprite2D")).strip_edges()
+	if node_name.is_empty() or node_name.contains("/") or node_name.contains("\\") or node_name.contains(".."):
+		return _response(false, "AnimatedSprite2D name is invalid.")
+	if parent.get_node_or_null(NodePath(node_name)) != null:
+		return _response(false, "Parent already has a child named: " + node_name)
+
+	var animation_name := _normalize_animation_name(str(request.get("animation", request.get("default_animation", ""))))
+	if animation_name.is_empty():
+		animation_name = str(animation_names[0])
+	if not sprite_frames.has_animation(animation_name):
+		return _response(false, "SpriteFrames animation not found: " + animation_name, {
+			"available_animations": animation_names
+		})
+
+	var snapshot := _create_animation_scene_snapshot("create_animated_sprite " + node_name)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; AnimatedSprite2D was not added.", {
+			"snapshot": snapshot
+		})
+
+	var node := AnimatedSprite2D.new()
+	node.name = node_name
+	node.sprite_frames = sprite_frames
+	node.animation = animation_name
+	node.speed_scale = maxf(float(request.get("speed_scale", 1.0)), 0.01)
+	node.centered = bool(request.get("centered", true))
+	if request.has("position"):
+		var decoded_position = _decode_value(request.get("position"))
+		if decoded_position is Vector2:
+			node.position = decoded_position as Vector2
+	parent.add_child(node)
+	node.owner = scene_root
+	if bool(request.get("autoplay", false)):
+		if _has_property(node, "autoplay"):
+			node.set("autoplay", animation_name)
+		node.play(animation_name)
+	_focus_editor_node(node)
+	_set_scene_dirty()
+
+	var changed_paths: Array = []
+	if not scene_root.scene_file_path.is_empty():
+		changed_paths.append(scene_root.scene_file_path)
+	return _response(true, "AnimatedSprite2D created.", {
+		"sprite_frames_path": sprite_frames_path,
+		"animation": animation_name,
+		"node": _node_summary(node, scene_root),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], changed_paths, {
+		"type": "scene_selection",
+		"node_path": str(scene_root.get_path_to(node)),
+		"inspector_focused": true
+	})
+
+
+func _create_animation_preview(request: Dictionary) -> Dictionary:
+	var sprite_frames_path := _normalize_resource_path(str(request.get("sprite_frames_path", request.get("path", ""))))
+	if sprite_frames_path.is_empty() or not _design_path_allowed(sprite_frames_path):
+		return _response(false, "SpriteFrames path is invalid or protected.")
+	if not FileAccess.file_exists(sprite_frames_path):
+		return _response(false, "SpriteFrames file does not exist: " + sprite_frames_path)
+	var resource = load(sprite_frames_path)
+	if not resource is SpriteFrames:
+		return _response(false, "Resource is not SpriteFrames: " + sprite_frames_path)
+	var sprite_frames := resource as SpriteFrames
+
+	var root := _normalize_design_root(str(request.get("root", "res://art")))
+	if root.is_empty():
+		return _response(false, "Animation preview root is invalid or protected.")
+	var default_name := _safe_design_slug(sprite_frames_path.get_file().get_basename(), "sprite_frames") + "_animation_preview.png"
+	var path := _normalize_resource_path(str(request.get("path", root.path_join("reports").path_join(default_name))))
+	if path.is_empty() or not _design_path_allowed(path):
+		return _response(false, "Animation preview path is invalid or protected.")
+	if path.get_extension().to_lower() != "png":
+		return _response(false, "Animation preview path must end with .png.")
+	var report_path := _normalize_resource_path(str(request.get("report_path", path.get_basename() + ".json")))
+	if report_path.is_empty() or not _design_path_allowed(report_path):
+		return _response(false, "Animation preview report path is invalid or protected.")
+	if report_path.get_extension().to_lower() != "json":
+		return _response(false, "Animation preview report path must end with .json.")
+	if not bool(request.get("replace", false)):
+		if FileAccess.file_exists(path):
+			return _response(false, "Animation preview already exists: " + path)
+		if FileAccess.file_exists(report_path):
+			return _response(false, "Animation preview report already exists: " + report_path)
+
+	var thumb_size := mini(maxi(int(request.get("thumb_size", 64)), 24), 256)
+	var columns := mini(maxi(int(request.get("columns", 8)), 1), 24)
+	var preview_data := _build_animation_preview_image(sprite_frames, sprite_frames_path, thumb_size, columns)
+	var preview_image = preview_data.get("image", null)
+	if not preview_image is Image:
+		return _response(false, "Failed to build animation preview image.")
+
+	var snapshot := _create_snapshot([
+		{
+			"type": "write_file",
+			"path": path
+		},
+		{
+			"type": "write_file",
+			"path": report_path
+		},
+		{
+			"type": "make_dir",
+			"path": path.get_base_dir()
+		}
+	], "create_animation_preview " + path)
+	if not bool(snapshot.get("ok", true)):
+		return _response(false, "Failed to create pre-change snapshot; animation preview was not saved.", {
+			"snapshot": snapshot
+		})
+	var dir_error := DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
+	if dir_error != OK and dir_error != ERR_ALREADY_EXISTS:
+		return _response(false, "Failed to create animation preview directory: " + error_string(dir_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var save_error := (preview_image as Image).save_png(path)
+	if save_error != OK:
+		return _response(false, "Failed to save animation preview: " + error_string(save_error), {
+			"path": path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	var report := _sprite_frames_report(sprite_frames, sprite_frames_path, request.get("expected_animations", []))
+	report["preview_path"] = path
+	report["report_path"] = report_path
+	report["preview"] = {
+		"width": int(preview_data.get("width", 0)),
+		"height": int(preview_data.get("height", 0)),
+		"thumb_size": thumb_size,
+		"columns": columns,
+		"rows": int(preview_data.get("rows", 0))
+	}
+	report["snapshot"] = _snapshot_summary(snapshot)
+	var write_error := _write_json_file(report_path, report)
+	if write_error != OK:
+		return _response(false, "Failed to write animation preview report: " + error_string(write_error), {
+			"path": report_path,
+			"snapshot": _snapshot_summary(snapshot)
+		})
+	_refresh_editor_filesystem()
+	return _response(true, "Animation preview created.", {
+		"path": path,
+		"report_path": report_path,
+		"sprite_frames_path": sprite_frames_path,
+		"animation_count": int(report.get("animation_count", 0)),
+		"frame_count": int(report.get("frame_count", 0)),
+		"preview": report.get("preview", {}),
+		"snapshot": _snapshot_summary(snapshot)
+	}, [], [path, report_path])
 
 
 func _set_texture_import_preset(request: Dictionary) -> Dictionary:
@@ -3925,6 +4169,175 @@ func _texture_from_image_path(path: String) -> Texture2D:
 	if load_error != OK:
 		return null
 	return ImageTexture.create_from_image(image)
+
+
+func _sprite_frame_animation_names(sprite_frames: SpriteFrames) -> Array:
+	var names: Array = []
+	if sprite_frames == null:
+		return names
+	for animation_name in sprite_frames.get_animation_names():
+		names.append(str(animation_name))
+	return names
+
+
+func _expected_sprite_animation_names(raw_expected) -> Array:
+	var expected: Array = []
+	if typeof(raw_expected) == TYPE_STRING:
+		var raw_text := str(raw_expected).strip_edges()
+		if raw_text.is_empty():
+			return expected
+		raw_expected = raw_text.split(",", false)
+	if typeof(raw_expected) != TYPE_ARRAY:
+		return expected
+	for item in raw_expected as Array:
+		var animation_name := _normalize_animation_name(str(item))
+		if not animation_name.is_empty() and not expected.has(animation_name):
+			expected.append(animation_name)
+	return expected
+
+
+func _sprite_frames_report(sprite_frames: SpriteFrames, path: String, raw_expected) -> Dictionary:
+	var animation_names := _sprite_frame_animation_names(sprite_frames)
+	var expected := _expected_sprite_animation_names(raw_expected)
+	var issues: Array = []
+	var animations: Array = []
+	var total_frames := 0
+	var all_sizes: Array = []
+
+	if animation_names.is_empty():
+		issues.append("SpriteFrames has no animations.")
+	for expected_name in expected:
+		if not sprite_frames.has_animation(str(expected_name)):
+			issues.append("Missing expected animation: " + str(expected_name))
+
+	for animation_name in animation_names:
+		var frame_count := sprite_frames.get_frame_count(animation_name)
+		var frames: Array = []
+		var animation_sizes: Array = []
+		if frame_count <= 0:
+			issues.append("Animation has no frames: " + animation_name)
+		for frame_index in frame_count:
+			var texture := sprite_frames.get_frame_texture(animation_name, frame_index)
+			var frame_issue := ""
+			var size := Vector2i.ZERO
+			var texture_path := ""
+			if texture == null:
+				frame_issue = "missing_texture"
+				issues.append(animation_name + "[" + str(frame_index) + "] has no texture.")
+			else:
+				size = Vector2i(texture.get_width(), texture.get_height())
+				texture_path = str(texture.resource_path)
+				if size.x <= 0 or size.y <= 0:
+					frame_issue = "invalid_size"
+					issues.append(animation_name + "[" + str(frame_index) + "] has invalid texture size.")
+				var size_key := str(size.x) + "x" + str(size.y)
+				if not animation_sizes.has(size_key):
+					animation_sizes.append(size_key)
+				if not all_sizes.has(size_key):
+					all_sizes.append(size_key)
+			frames.append({
+				"index": frame_index,
+				"texture_path": texture_path,
+				"width": size.x,
+				"height": size.y,
+				"duration": sprite_frames.get_frame_duration(animation_name, frame_index),
+				"issue": frame_issue
+			})
+		if animation_sizes.size() > 1:
+			issues.append("Animation has inconsistent frame sizes: " + animation_name)
+		total_frames += frame_count
+		animations.append({
+			"name": animation_name,
+			"frame_count": frame_count,
+			"fps": sprite_frames.get_animation_speed(animation_name),
+			"loop": sprite_frames.get_animation_loop(animation_name),
+			"sizes": animation_sizes,
+			"frames": frames
+		})
+
+	return {
+		"schema_version": 1,
+		"path": path,
+		"generated_at": Time.get_datetime_string_from_system(),
+		"animation_count": animation_names.size(),
+		"frame_count": total_frames,
+		"expected_animations": expected,
+		"available_animations": animation_names,
+		"sizes": all_sizes,
+		"valid": issues.is_empty(),
+		"issue_count": issues.size(),
+		"issues": issues,
+		"animations": animations
+	}
+
+
+func _build_animation_preview_image(sprite_frames: SpriteFrames, path: String, thumb_size: int, columns: int) -> Dictionary:
+	var animation_names := _sprite_frame_animation_names(sprite_frames)
+	var padding := 10
+	var rail_width := 14
+	var tile_width := thumb_size + padding * 2
+	var tile_height := thumb_size + padding * 2 + 8
+	var rows := 0
+	for animation_name in animation_names:
+		var frame_count := maxi(sprite_frames.get_frame_count(animation_name), 1)
+		rows += maxi(int(ceil(float(frame_count) / float(columns))), 1)
+	rows = maxi(rows, 1)
+	var width := rail_width + padding * 2 + columns * tile_width
+	var height := padding + rows * tile_height
+	var image := Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.045, 0.055, 0.075, 1.0))
+
+	var row_offset := 0
+	for animation_name in animation_names:
+		var frame_count := sprite_frames.get_frame_count(animation_name)
+		var animation_rows := maxi(int(ceil(float(maxi(frame_count, 1)) / float(columns))), 1)
+		var marker := _stable_preview_color(path + ":" + animation_name)
+		_draw_placeholder_rect(image, Rect2i(padding, padding + row_offset * tile_height, rail_width, animation_rows * tile_height - padding), marker)
+		if frame_count <= 0:
+			var empty_rect := Rect2i(padding + rail_width + padding, padding + row_offset * tile_height, tile_width - padding, tile_height - padding)
+			_draw_placeholder_rect(image, empty_rect, Color(0.08, 0.12, 0.18, 1.0))
+			_draw_preview_rect_outline(image, empty_rect, marker, 1)
+		for frame_index in frame_count:
+			var local_row := frame_index / columns
+			var column := frame_index % columns
+			var origin := Vector2i(padding + rail_width + padding + column * tile_width, padding + (row_offset + local_row) * tile_height)
+			var tile_rect := Rect2i(origin, Vector2i(tile_width - padding, tile_height - padding))
+			_draw_placeholder_rect(image, tile_rect, Color(0.08, 0.12, 0.18, 1.0))
+			_draw_preview_rect_outline(image, tile_rect, Color(0.18, 0.3, 0.48, 1.0), 1)
+			_draw_placeholder_rect(image, Rect2i(origin.x + 4, origin.y + tile_rect.size.y - 8, tile_rect.size.x - 8, 4), marker)
+			var thumbnail := _thumbnail_from_texture(sprite_frames.get_frame_texture(animation_name, frame_index), thumb_size)
+			if thumbnail != null:
+				var destination := Vector2i(origin.x + padding + (thumb_size - thumbnail.get_width()) / 2, origin.y + padding + (thumb_size - thumbnail.get_height()) / 2)
+				image.blend_rect(thumbnail, Rect2i(0, 0, thumbnail.get_width(), thumbnail.get_height()), destination)
+			else:
+				_draw_placeholder_diamond(image, Vector2i(origin.x + tile_rect.size.x / 2, origin.y + padding + thumb_size / 2), thumb_size / 3, thumb_size / 3, marker)
+		row_offset += animation_rows
+
+	return {
+		"image": image,
+		"rows": rows,
+		"width": width,
+		"height": height
+	}
+
+
+func _thumbnail_from_texture(texture: Texture2D, thumb_size: int) -> Image:
+	if texture == null or texture.get_width() <= 0 or texture.get_height() <= 0:
+		return null
+	var image := texture.get_image()
+	if image == null or image.get_width() <= 0 or image.get_height() <= 0:
+		return null
+	if image.is_compressed():
+		var decompress_error := image.decompress()
+		if decompress_error != OK:
+			return null
+	if image.get_format() != Image.FORMAT_RGBA8:
+		image.convert(Image.FORMAT_RGBA8)
+	var scale := minf(float(thumb_size) / float(image.get_width()), float(thumb_size) / float(image.get_height()))
+	var resized_width := maxi(int(round(float(image.get_width()) * scale)), 1)
+	var resized_height := maxi(int(round(float(image.get_height()) * scale)), 1)
+	image.resize(resized_width, resized_height, Image.INTERPOLATE_NEAREST)
+	return image
 
 
 func _texture_import_preset_settings(preset: String) -> Dictionary:

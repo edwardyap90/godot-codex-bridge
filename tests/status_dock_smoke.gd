@@ -39,10 +39,10 @@ class FakeBridge:
 	func console_state() -> Dictionary:
 		return {
 			"status": {
-				"bridge_version": "0.6.1",
+				"bridge_version": "0.7.0",
 				"control_plane": {
 					"schema_version": 2,
-					"bridge_version": "0.6.1",
+					"bridge_version": "0.7.0",
 					"godot_version": {
 						"string": "4.6.2"
 					}
